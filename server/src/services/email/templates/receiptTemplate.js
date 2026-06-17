@@ -6,6 +6,17 @@ const BRAND_DARK  = '#202124';
 const BRAND_MUTED = '#6b7280';
 
 /**
+ * Replaces newlines with HTML line break tags to preserve text formatting.
+ * 
+ * @param {string} text - Raw template text
+ * @returns {string} Text formatted for HTML email
+ */
+function formatHtmlText(text) {
+  if (!text) return '';
+  return text.replace(/\n/g, '<br/>');
+}
+
+/**
  * Builds the premium HTML body for a donation receipt email.
  *
  * Why? Keeping this layout isolated allows rendering exact branded emails
@@ -25,6 +36,9 @@ export function buildReceiptHtml(receiptData, pdfFilename) {
     country    = 'Not specified',
     tierName   = 'Supporter',
     tierPerks  = [],
+    pdfThankYouMessage = 'We appreciate your generous support.',
+    pdfSignatureName   = 'The OpenmindProjects Team',
+    isRecurring        = false,
   } = receiptData;
 
   const amountFormatted = '$' + (amount / 100).toFixed(2);
@@ -140,11 +154,11 @@ export function buildReceiptHtml(receiptData, pdfFilename) {
     +     'text-align:right;'
     +     'border-top:1px solid rgba(66,133,244,0.2);'
     +     'border-bottom:1px solid rgba(66,133,244,0.2);'
-    +   '">' + amountFormatted + ' / Month</td>\n'
+    +   '">' + amountFormatted + (isRecurring ? ' / Month' : '') + '</td>\n'
     + '</tr>\n'
     + '<tr style="background:#ffffff;">\n'
-    + '  <td style="padding:8px 16px;font-size:12.5px;color:' + BRAND_MUTED + ';vertical-align:middle;">Subscription Tier:</td>\n'
-    + '  <td style="padding:8px 16px;font-size:12.5px;color:' + BRAND_DARK + ';font-weight:700;text-align:right;">\u2746 ' + tierName + '</td>\n'
+    + '  <td style="padding:8px 16px;font-size:12.5px;color:' + BRAND_MUTED + ';vertical-align:middle;">' + (isRecurring ? 'Subscription Tier:' : 'Donation Type:') + '</td>\n'
+    + '  <td style="padding:8px 16px;font-size:12.5px;color:' + BRAND_DARK + ';font-weight:700;text-align:right;">\u2746 ' + (isRecurring ? tierName : 'One-Time Donation') + '</td>\n'
     + '</tr>\n'
     + '</table>\n'
     + '</td></tr>\n'
@@ -154,6 +168,11 @@ export function buildReceiptHtml(receiptData, pdfFilename) {
         + perksHtml
         + '\n</td></tr>\n'
       : '')
+    + '<tr><td style="padding:16px 20px 10px;border-top:1px solid rgba(66,133,244,0.08);">\n'
+    + '  <p style="font-size:12.5px;line-height:1.6;color:' + BRAND_DARK + ';margin:0 0 14px;">' + formatHtmlText(pdfThankYouMessage) + '</p>\n'
+    + '  <div style="font-size:11.5px;color:' + BRAND_MUTED + ';margin-bottom:2px;">Sincerely,</div>\n'
+    + '  <div style="font-size:12.5px;font-weight:bold;color:' + BRAND_DARK + ';">' + pdfSignatureName + '</div>\n'
+    + '</td></tr>\n'
     + '<tr><td style="padding:14px 20px 8px;">\n'
     + '  <div style="'
     +     'background:#f0fdf4;'

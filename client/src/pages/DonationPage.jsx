@@ -23,6 +23,7 @@ export default function DonationPage() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedAmount, setSelectedAmount] = useState(null);
   const [isRecurring, setIsRecurring] = useState(true);
+  const [selectedBox, setSelectedBox] = useState(null);
 
   const welcomeHeroIntro = useContent(
     CONTENT_KEYS.WELCOME_HERO_INTRO,
@@ -32,10 +33,13 @@ export default function DonationPage() {
   /**
    * Triggers the Checkout/Subscription modal.
    * @param {number} amount - Amount in USD.
+   * @param {boolean} recurring - Whether the donation is monthly/recurring.
+   * @param {Object|null} box - Selected donation box configuration.
    */
-  const handleDonate = (amount, recurring = true) => {
+  const handleDonate = (amount, recurring = true, box = null) => {
     setSelectedAmount(amount);
     setIsRecurring(recurring);
+    setSelectedBox(box);
     setCheckoutOpen(true);
   };
 
@@ -45,6 +49,7 @@ export default function DonationPage() {
   const handleCloseCheckout = () => {
     setCheckoutOpen(false);
     setSelectedAmount(null);
+    setSelectedBox(null);
   };
 
   if (loading) {
@@ -95,6 +100,8 @@ export default function DonationPage() {
         onClose={handleCloseCheckout}
         amount={selectedAmount}
         isRecurring={isRecurring}
+        box={selectedBox}
+        tiers={content?.tiers || []}
       />
 
       <Footer />

@@ -406,14 +406,18 @@ export function drawPerksList(doc, x, y, w, perks, fonts) {
  * @param {Object} fonts - Fonts map.
  * @returns {number} Updated vertical coordinate.
  */
-export function drawAttachmentNotice(doc, x, y, w, fonts) {
+export function drawAttachmentNotice(doc, x, y, w, footerNote, fonts) {
   y += 18;
 
+  const noteText = footerNote || 'This PDF is your official donation receipt. Please retain for your records.';
   doc.save();
+  doc.font(fonts.bold).fontSize(9.5);
+  const textHeight = doc.heightOfString(noteText, { width: w - 44 });
+  const boxH = Math.max(32, textHeight + 22);
 
   // Background green highlight box
   doc
-    .rect(x, y, w, 32)
+    .rect(x, y, w, boxH)
     .fillColor('#f0fdf4')
     .fill();
 
@@ -422,19 +426,71 @@ export function drawAttachmentNotice(doc, x, y, w, fonts) {
   // Draw premium green star vector on the left
   const starSize = 9;
   const starX = x + 18;
-  const starY = y + 16;
+  const starY = y + (boxH / 2);
   drawStar(doc, starX, starY, starSize, BRAND_GREEN);
 
   // Green notice text
+  doc.save();
   doc
     .fillColor(BRAND_GREEN)
     .font(fonts.bold)
     .fontSize(9.5)
-    .text('This PDF is your official donation receipt. Please retain for your records.', starX + 11, y + 11, {
+    .text(noteText, starX + 11, y + ((boxH - textHeight) / 2), {
       width: w - 44,
     });
+  doc.restore();
 
-  return y + 32;
+  return y + boxH;
+}
+
+/**
+ * Draws the editable thank-you message and signature block.
+ * 
+ * Why? Separates dynamic messaging from structured receipt tables to give
+ * the PDF a personal, high-quality touch.
+ * 
+ * @param {PDFKit.PDFDocument} doc - PDFKit document instance.
+ * @param {number} x - Left coordinate.
+ * @param {number} y - Top coordinate.
+ * @param {number} w - Content width.
+ * @param {string} thankYouMessage - Custom thank-you text.
+ * @param {string} signatureName - Custom signature text.
+ * @param {Object} fonts - Fonts map.
+ * @returns {number} Updated vertical coordinate.
+ */
+export function drawThankYouSection(doc, x, y, w, thankYouMessage, signatureName, fonts) {
+  y += 18;
+
+  // Thank You Message
+  doc.save();
+  doc
+    .fillColor(BRAND_DARK)
+    .font(fonts.regular)
+    .fontSize(9.5)
+    .text(thankYouMessage, x + 16, y, { width: w - 32, lineGap: 2.5 });
+  doc.restore();
+
+  const textHeight = doc.heightOfString(thankYouMessage, { width: w - 32, lineGap: 2.5 });
+  y += textHeight + 14;
+
+  // Signature Block
+  doc.save();
+  doc
+    .fillColor(BRAND_MUTED)
+    .font(fonts.regular)
+    .fontSize(9)
+    .text('Sincerely,', x + 16, y);
+
+  y += 14;
+
+  doc
+    .fillColor(BRAND_DARK)
+    .font(fonts.bold)
+    .fontSize(9.5)
+    .text(signatureName, x + 16, y);
+  doc.restore();
+
+  return y + 14;
 }
 
 /**

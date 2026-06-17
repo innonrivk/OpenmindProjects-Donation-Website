@@ -7,6 +7,7 @@ import projectRoutes from './projects.js';
 import tierRoutes from './tiers.js';
 import milestoneRoutes from './milestones.js';
 import transactionRoutes from './transactions.js';
+import receiptSettingsRoutes from './receiptSettings.js';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ router.use(
 );
 
 // Mount auth router first (handles its own requireAdminAuth application internally)
+// Why? Ensures authentication endpoints bypass auth requirement checks.
 router.use('/auth', authRoutes);
 
 // Apply requireAdminAuth middleware to all subsequent admin sub-routers
@@ -39,5 +41,6 @@ router.use('/projects', requireAdminAuth, projectRoutes);
 router.use('/tiers', requireAdminAuth, tierRoutes);
 router.use('/milestones', requireAdminAuth, milestoneRoutes);
 router.use('/transactions', requireAdminAuth, transactionRoutes);
+router.use('/receipt-settings', requireAdminAuth, receiptSettingsRoutes);
 
 export default router;

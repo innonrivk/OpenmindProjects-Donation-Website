@@ -141,6 +141,23 @@
   border-color: var(--color-border-accent);
 }
 
+.cms-form__field input:disabled,
+.cms-form__field select:disabled,
+.cms-form__field textarea:disabled {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  border-color: var(--color-border);
+  opacity: 0.8;
+}
+
+.checkbox-label--disabled {
+  color: var(--color-text-muted) !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+
 .field-error {
   font-size: var(--font-size-xs);
   color: var(--brand-red);

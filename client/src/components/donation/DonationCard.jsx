@@ -84,7 +84,7 @@ export default function DonationCard({ box, onDonate, isPopular = false, isExpan
         className="donation-card__btn"
         onClick={(e) => {
           e.stopPropagation(); // Prevent toggling height when clicking Donate button
-          onDonate(box.amount, box.isRecurring !== false);
+          onDonate(box.amount, box.isRecurring !== false, box);
         }}
       >
         {box.buttonText ? formatContentInline(box.buttonText) : `Donate $${box.amount}/mo`}

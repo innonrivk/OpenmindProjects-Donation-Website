@@ -17,7 +17,8 @@ import {
   drawAmountHighlight,
   drawPerksList,
   drawAttachmentNotice,
-  drawFooter
+  drawFooter,
+  drawThankYouSection
 } from './receiptPdfDraw.js';
 
 // Resolve module paths under Node ESM environments securely
@@ -63,6 +64,9 @@ export async function generateReceiptPdf(opts) {
     tierName   = 'Supporter',
     tierPerks  = [],
     isRecurring = true,
+    pdfThankYouMessage = 'We appreciate your generous support.',
+    pdfFooterNote      = 'This PDF is your official donation receipt. Please retain for your records.',
+    pdfSignatureName   = 'The OpenmindProjects Team',
   } = opts;
 
   const amountFormatted = isRecurring
@@ -167,10 +171,14 @@ export async function generateReceiptPdf(opts) {
     // A. Tier Benefits Perks List
     currentY = drawPerksList(doc, cardX, cardY + cardH, cardW, tierPerks, fonts);
 
-    // B. Attachment/Records Legal Notice Box
-    currentY = drawAttachmentNotice(doc, cardX, 640, cardW, fonts);
+    // B. Thank You Message and Signature Block
+    currentY = drawThankYouSection(doc, cardX, currentY, cardW, pdfThankYouMessage, pdfSignatureName, fonts);
 
-    // C. Document Bottom Footer
+    // C. Attachment/Records Legal Notice Box
+    const noticeY = Math.max(currentY + 10, 630);
+    currentY = drawAttachmentNotice(doc, cardX, noticeY, cardW, pdfFooterNote, fonts);
+
+    // D. Document Bottom Footer
     drawFooter(doc, cardX, 745, cardW, year, fonts);
 
     doc.end();

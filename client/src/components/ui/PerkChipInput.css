@@ -2,9 +2,9 @@
 
 .perk-chip-input {
   width: 100%;
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--color-border, #dadce0);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--color-bg-input, #ffffff);
   padding: 8px 12px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   min-height: 48px;
@@ -12,13 +12,13 @@
 }
 
 .perk-chip-input:focus-within:not(.perk-chip-input--disabled) {
-  border-color: var(--color-primary, #14b8a6);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+  border-color: var(--color-accent-primary, #4285f4);
+  box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.15);
 }
 
 .perk-chip-input--disabled {
-  background: rgba(255, 255, 255, 0.01);
-  border-color: rgba(255, 255, 255, 0.05);
+  background: var(--color-bg-secondary, #f8f9fa);
+  border-color: var(--color-border, #dadce0);
   cursor: not-allowed;
 }
 
@@ -33,27 +33,30 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.15) 0%, rgba(13, 148, 136, 0.2) 100%);
-  border: 1px solid rgba(20, 184, 166, 0.3);
-  color: var(--color-text-bright, #f8fafc);
-  padding: 4px 10px;
+  background: linear-gradient(135deg, #d49000 0%, #b27a00 100%);
+  border: 1px solid #9e6c00;
+  color: #ffffff;
+  padding: 4px 12px;
   border-radius: 16px;
   font-size: 0.85rem;
   line-height: 1;
+  font-weight: 500;
   transition: all 0.2s ease;
   max-width: 100%;
   box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .perk-chip-input__chip--disabled {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.4);
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #475569;
+  box-shadow: none;
 }
 
 .perk-chip-input__lock-icon {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.3);
+  color: #64748b;
 }
 
 .perk-chip-input__chip-text {
@@ -65,7 +68,7 @@
 .perk-chip-input__remove-btn {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   padding: 0;
   font-size: 0.75rem;
@@ -80,8 +83,8 @@
 }
 
 .perk-chip-input__remove-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ef4444;
+  background: rgba(255, 255, 255, 0.25);
+  color: #ff3333;
 }
 
 .perk-chip-input__field {
@@ -89,12 +92,13 @@
   background: transparent;
   border: none;
   outline: none;
-  color: var(--color-text-bright, #f8fafc);
+  color: var(--color-text-primary, #202124);
   font-size: 0.9rem;
   padding: 4px 0;
   min-width: 140px;
 }
 
 .perk-chip-input__field::placeholder {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--color-text-muted, #80868b);
 }
+

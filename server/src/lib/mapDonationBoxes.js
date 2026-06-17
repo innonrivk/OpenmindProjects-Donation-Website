@@ -15,28 +15,45 @@ export function mapDonationBoxes(donationBoxes) {
   return donationBoxes.map(box => {
     const plainBox = { ...box };
 
-    // Resolve perks from the included tier relation (preferred path)
+    // 1. Resolve perks: inherit from tier if connected to a tier
+    let boxPerks = [];
+    try {
+      boxPerks = typeof plainBox.perks === 'string'
+        ? JSON.parse(plainBox.perks)
+        : (Array.isArray(plainBox.perks) ? plainBox.perks : []);
+    } catch {
+      boxPerks = [];
+    }
+
     if (plainBox.tier && !plainBox.isCustomAmount) {
-      let perks = [];
+      let tierPerks = [];
       try {
-        perks = typeof plainBox.tier.perks === 'string'
+        tierPerks = typeof plainBox.tier.perks === 'string'
           ? JSON.parse(plainBox.tier.perks)
           : (Array.isArray(plainBox.tier.perks) ? plainBox.tier.perks : []);
       } catch {
-        perks = [];
+        tierPerks = [];
       }
-      plainBox.perks = perks;
+      plainBox.perks = tierPerks;
+      plainBox.title = plainBox.tier.name;
+
+      // Resolve amount: inherit tier minAmount if box amount is 0/unset, otherwise use the edited override amount
+      if (plainBox.amount === 0 || plainBox.amount === null || plainBox.amount === undefined) {
+        plainBox.amount = plainBox.tier.minAmount;
+      }
     } else {
-      // For standalone box, perks is stored directly as a Json column
-      let perks = [];
-      try {
-        perks = typeof plainBox.perks === 'string'
-          ? JSON.parse(plainBox.perks)
-          : (Array.isArray(plainBox.perks) ? plainBox.perks : []);
-      } catch {
-        perks = [];
+      plainBox.perks = boxPerks;
+    }
+
+    // 2. Resolve button text: default to "Donate $[amount]/mo" (or "Donate $[amount]" if one-time) if it is empty, null, or the default "Donate"
+    const hasCustomButtonText = plainBox.buttonText && plainBox.buttonText !== 'Donate' && plainBox.buttonText.trim() !== '';
+    if (!hasCustomButtonText) {
+      if (plainBox.isCustomAmount) {
+        plainBox.buttonText = plainBox.isRecurring ? 'Donate Monthly' : 'Donate One-Time';
+      } else {
+        const suffix = plainBox.isRecurring !== false ? '/mo' : '';
+        plainBox.buttonText = `Donate $${plainBox.amount}${suffix}`;
       }
-      plainBox.perks = perks;
     }
 
     return plainBox;

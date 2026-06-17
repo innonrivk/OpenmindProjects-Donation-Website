@@ -1,6 +1,7 @@
 import prisma from '../../lib/prismaPublic.js';
 import { stripe } from '../../services/stripe.js';
 import { sendEmail } from '../../services/email.js';
+import { resolveSettings, interpolate } from '../../services/receiptVariables.js';
 
 /**
  * Handles payment_intent.succeeded stripe webhook events.
@@ -55,9 +56,28 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     setTimeout(async () => {
       try {
         const donorName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Valued Donor';
+        const settings = await resolveSettings('ONE_TIME');
+
+        const formattedVariables = {
+          donorName,
+          amount: `$${(amountPaid / 100).toFixed(2)}`,
+          tierName: 'One-Time Supporter',
+          date: new Date().toLocaleDateString('en-US', {
+            year: 'numeric', month: 'long', day: 'numeric'
+          }),
+          transactionId: paymentIntent.id,
+          transactionSubject: '',
+          country: user.country || 'Not specified',
+        };
+
+        const finalSubject = interpolate(settings.emailSubjectTemplate, formattedVariables);
+        const pdfThankYouMessage = interpolate(settings.pdfThankYouMessage, formattedVariables);
+        const pdfFooterNote = interpolate(settings.pdfFooterNote, formattedVariables);
+        const pdfSignatureName = interpolate(settings.pdfSignatureName, formattedVariables);
+
         await sendEmail({
           to: user.email,
-          subject: 'Thank you for your one-time donation — Official OMP Receipt 🎉',
+          subject: finalSubject,
           title: 'Donation Receipt',
           messageText: `Hi ${user.firstName || 'Donor'}, thank you for your generous support of $${(amountPaid / 100).toFixed(2)}. Your contribution goes directly towards our active projects.`,
           receiptData: {
@@ -69,6 +89,10 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
             country: user.country || 'Not specified',
             tierName: 'One-Time Supporter',
             tierPerks: ['One-time support', 'Counted in milestones & total donation amount'],
+            isRecurring: false,
+            pdfThankYouMessage,
+            pdfFooterNote,
+            pdfSignatureName,
           }
         });
       } catch (bgErr) {
@@ -139,18 +163,35 @@ async function handleInvoicePaymentSucceeded(invoice) {
         const amountDollars = Math.floor(amountPaid / 100);
         let tierName = 'Supporter';
         let tierPerks = [];
+        let tierId = null;
 
         try {
-          const tier = await prisma.tier.findFirst({
+          // First try to find a donation box linked to a tier that has this override amount
+          const overrideBox = await prisma.donationBox.findFirst({
             where: {
-              minAmount: { lte: amountDollars },
-              OR: [{ maxAmount: null }, { maxAmount: { gte: amountDollars } }],
+              amount: amountDollars,
+              tierId: { not: null },
+              isActive: true,
             },
-            orderBy: { tierLevel: 'desc' },
+            include: { tier: true },
           });
+
+          let tier = overrideBox?.tier;
+
+          if (!tier) {
+            // Fall back to standard range-based lookup
+            tier = await prisma.tier.findFirst({
+              where: {
+                minAmount: { lte: amountDollars },
+                OR: [{ maxAmount: null }, { maxAmount: { gte: amountDollars } }],
+              },
+              orderBy: { tierLevel: 'desc' },
+            });
+          }
 
           if (tier) {
             tierName = tier.name;
+            tierId = tier.id;
             tierPerks = Array.isArray(tier.perks) ? tier.perks : JSON.parse(tier.perks || '[]');
           }
         } catch (tierErr) {
@@ -158,10 +199,28 @@ async function handleInvoicePaymentSucceeded(invoice) {
         }
 
         const donorName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Valued Donor';
+        const settings = await resolveSettings('RECURRING', tierId);
+
+        const formattedVariables = {
+          donorName,
+          amount: `$${(amountPaid / 100).toFixed(2)}`,
+          tierName,
+          date: new Date().toLocaleDateString('en-US', {
+            year: 'numeric', month: 'long', day: 'numeric'
+          }),
+          transactionId: invoice.id,
+          transactionSubject: '',
+          country: user.country || 'Not specified',
+        };
+
+        const finalSubject = interpolate(settings.emailSubjectTemplate, formattedVariables);
+        const pdfThankYouMessage = interpolate(settings.pdfThankYouMessage, formattedVariables);
+        const pdfFooterNote = interpolate(settings.pdfFooterNote, formattedVariables);
+        const pdfSignatureName = interpolate(settings.pdfSignatureName, formattedVariables);
 
         await sendEmail({
           to: user.email,
-          subject: 'Thank you for your donation — Official OMP Receipt 🎉',
+          subject: finalSubject,
           title: 'Donation Receipt',
           messageText: `Hi ${user.firstName || 'Donor'}, thank you for your generous support of $${(amountPaid / 100).toFixed(2)}. Your contribution goes directly towards our active projects.`,
           receiptData: {
@@ -173,6 +232,10 @@ async function handleInvoicePaymentSucceeded(invoice) {
             country: user.country || 'Not specified',
             tierName,
             tierPerks,
+            isRecurring: true,
+            pdfThankYouMessage,
+            pdfFooterNote,
+            pdfSignatureName,
           }
         });
       } catch (bgErr) {

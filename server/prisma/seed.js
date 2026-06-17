@@ -40,7 +40,20 @@ async function main() {
   await prisma.donationBox.deleteMany();
   await prisma.tier.deleteMany();
   await prisma.websiteContent.deleteMany();
+  await prisma.receiptSettings.deleteMany();
   console.log('  🧹 Cleaned existing data');
+
+  // ── Seed Receipt Settings (GLOBAL Fallback) ──
+  await prisma.receiptSettings.create({
+    data: {
+      donationType: 'GLOBAL',
+      emailSubjectTemplate: 'Thank you for your donation — Official OMP Receipt 🎉',
+      pdfThankYouMessage: 'We appreciate your generous support.',
+      pdfFooterNote: 'This PDF is your official donation receipt. Please retain for your records.',
+      pdfSignatureName: 'The OpenmindProjects Team',
+    },
+  });
+  console.log('  ✅ Global receipt settings seeded');
 
   // ── Seed Admin User ──
   const adminEmail = 'admin@openmindprojects.org';

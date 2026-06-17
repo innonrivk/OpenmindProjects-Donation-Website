@@ -60,11 +60,27 @@ model Transaction {
   amount                 Int               // in cents
   status                 TransactionStatus @default(SUCCEEDED)
   isRecurring            Boolean           @default(true) @map("is_recurring")
+  subject                String?
+  adminNote              String?           @map("admin_note")
   createdAt              DateTime          @default(now()) @map("created_at")
   user                   User              @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("transactions")
+}
+
+model ReceiptSettings {
+  id                   Int      @id @default(autoincrement())
+  donationType         String   @unique @default("GLOBAL") @map("donation_type")
+  // "GLOBAL" | "ONE_TIME" | "RECURRING" | "TIER_{tierId}"
+  emailSubjectTemplate String   @default("Thank you for your donation — Official OMP Receipt 🎉") @map("email_subject_template")
+  // Supports: {donorName}, {amount}, {tierName}, {date}, {transactionId}, {transactionSubject}, {country}
+  pdfThankYouMessage   String   @default("We appreciate your generous support.") @map("pdf_thank_you_message")
+  pdfFooterNote        String   @default("This PDF is your official donation receipt. Please retain for your records.") @map("pdf_footer_note")
+  pdfSignatureName     String   @default("The OpenmindProjects Team") @map("pdf_signature_name")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("receipt_settings")
 }
 
 model Tier {

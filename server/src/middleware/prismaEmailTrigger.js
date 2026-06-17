@@ -1,4 +1,5 @@
 import { sendEmail } from '../services/email.js';
+import { resolveSettings, interpolate } from '../services/receiptVariables.js';
 
 /**
  * Structured logger to output indexable logs.
@@ -82,6 +83,7 @@ export function withEmailTrigger(client) {
                 if (user && user.email) {
                   let tierName = 'One-Time Donation';
                   let tierPerks = [];
+                  let tierId = null;
 
                   if (result.isRecurring) {
                     // Resolve the donor's active tier from the Tier table using monthlyAmount (already in dollars)
@@ -89,19 +91,35 @@ export function withEmailTrigger(client) {
                     tierName = 'Supporter';
 
                     try {
-                      const tier = await client.tier.findFirst({
+                      // First try to find a donation box linked to a tier that has this override amount
+                      const overrideBox = await client.donationBox.findFirst({
                         where: {
-                          minAmount: { lte: amountDollars },
-                          OR: [
-                            { maxAmount: null },
-                            { maxAmount: { gte: amountDollars } },
-                          ],
+                          amount: amountDollars,
+                          tierId: { not: null },
+                          isActive: true,
                         },
-                        orderBy: { tierLevel: 'desc' },
+                        include: { tier: true },
                       });
+
+                      let tier = overrideBox?.tier;
+
+                      if (!tier) {
+                        // Fall back to standard range-based lookup
+                        tier = await client.tier.findFirst({
+                          where: {
+                            minAmount: { lte: amountDollars },
+                            OR: [
+                              { maxAmount: null },
+                              { maxAmount: { gte: amountDollars } },
+                            ],
+                          },
+                          orderBy: { tierLevel: 'desc' },
+                        });
+                      }
 
                       if (tier) {
                         tierName = tier.name;
+                        tierId = tier.id;
                         // perks is stored as a JSON array in SQLite
                         tierPerks = Array.isArray(tier.perks) ? tier.perks : JSON.parse(tier.perks || '[]');
                       }
@@ -110,12 +128,29 @@ export function withEmailTrigger(client) {
                     }
                   }
 
+                  const settings = await resolveSettings(result.isRecurring ? 'RECURRING' : 'ONE_TIME', tierId);
+
+                  const formattedVariables = {
+                    donorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Valued Donor',
+                    amount: `$${(result.amount / 100).toFixed(2)}`,
+                    tierName,
+                    date: new Date(result.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric', month: 'long', day: 'numeric'
+                    }),
+                    transactionId: result.stripeInvoiceId || result.id,
+                    transactionSubject: result.subject || '',
+                    country: user.country || 'Not specified',
+                  };
+
+                  const finalSubject = interpolate(settings.emailSubjectTemplate, formattedVariables);
+                  const pdfThankYouMessage = interpolate(settings.pdfThankYouMessage, formattedVariables);
+                  const pdfFooterNote = interpolate(settings.pdfFooterNote, formattedVariables);
+                  const pdfSignatureName = interpolate(settings.pdfSignatureName, formattedVariables);
+
                   // Dispatches sendEmail and catches errors safely
                   sendEmail({
                     to: user.email,
-                    subject: result.isRecurring
-                      ? 'Thank you for your donation — Official OMP Receipt 🎉'
-                      : 'Thank you for your one-time donation — Official OMP Receipt 🎉',
+                    subject: finalSubject,
                     title: 'Donation Receipt',
                     messageText: `Hi ${user.firstName || 'Donor'}, thank you for your generous support of $${(result.amount / 100).toFixed(2)}. Your contribution goes directly towards our active projects.`,
                     receiptData: {
@@ -128,6 +163,9 @@ export function withEmailTrigger(client) {
                       tierName,
                       tierPerks,
                       isRecurring: result.isRecurring,
+                      pdfThankYouMessage,
+                      pdfFooterNote,
+                      pdfSignatureName,
                     }
                   }).catch((err) => {
                     logger.error('TRANSACTION_RECEIPT_TRIGGER_FAILED', { error: err.message, transactionId: result.id });

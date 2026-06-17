@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '../../lib/api';
+import TransactionRow from './TransactionRow';
 
 /**
  * CMSTransactions — Auditing interface displaying live donor stats and logs.
@@ -63,30 +64,13 @@ export default function CMSTransactions() {
               <th>Amount</th>
               <th>Status</th>
               <th>Type</th>
+              <th>Subject</th>
               <th>Date</th>
             </tr>
           </thead>
           <tbody>
             {transactions.map((tx) => (
-              <tr key={tx.id}>
-                <td className="tx-id-cell">
-                  <code>{tx.stripeInvoiceId || tx.stripePaymentIntentId || tx.id.slice(0, 8)}</code>
-                </td>
-                <td>
-                  {tx.user ? `${tx.user.firstName} ${tx.user.lastName}` : 'Anonymous'}
-                </td>
-                <td>{tx.user?.email || '—'}</td>
-                <td>
-                  <strong>${(tx.amount / 100).toFixed(2)}</strong>
-                </td>
-                <td>
-                  <span className={`status-badge status-badge--${tx.status.toLowerCase()}`}>
-                    {tx.status}
-                  </span>
-                </td>
-                <td>{tx.isRecurring ? 'Subscription' : 'One-Time'}</td>
-                <td>{new Date(tx.createdAt).toLocaleString()}</td>
-              </tr>
+              <TransactionRow key={tx.id} tx={tx} />
             ))}
           </tbody>
         </table>

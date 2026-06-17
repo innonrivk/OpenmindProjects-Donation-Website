@@ -5,6 +5,7 @@ import CMSDonationBoxes from '../components/admin/CMSDonationBoxes';
 import CMSTiers from '../components/admin/CMSTiers';
 import CMSMilestones from '../components/admin/CMSMilestones';
 import CMSTransactions from '../components/admin/CMSTransactions';
+import CMSReceiptSettings from '../components/admin/CMSReceiptSettings';
 import EditContentPage from './admin/EditContentPage';
 import AdminSettingsPage from './admin/AdminSettingsPage';
 import './AdminDashboardPage.css';
@@ -27,6 +28,7 @@ export default function AdminDashboardPage() {
           <Route path="/tiers" element={<CMSTiers />} />
           <Route path="/milestones" element={<CMSMilestones />} />
           <Route path="/transactions" element={<CMSTransactions />} />
+          <Route path="/receipts" element={<CMSReceiptSettings />} />
           <Route path="/settings" element={<AdminSettingsPage />} />
         </Routes>
       </main>

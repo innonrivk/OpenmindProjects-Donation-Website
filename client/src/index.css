@@ -194,9 +194,11 @@ img {
 .underline-text {
   text-decoration: underline;
   text-decoration-color: inherit;
-  text-underline-offset: 4px;
+  text-underline-offset: 6px;
   text-decoration-thickness: 1px;
+  text-decoration-skip-ink: auto;
 }
+
 
 /* Ensure underlines nested inside color gradients inherit/use the theme colors */
 .gradient-text .underline-text {

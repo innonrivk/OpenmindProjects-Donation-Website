@@ -4,9 +4,11 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function Header() {
   let isAuthenticated = false;
+  let user = null;
   try {
     const auth = useAuth();
     isAuthenticated = auth.isAuthenticated;
+    user = auth.user;
   } catch {
     // AuthProvider not available — default to not authenticated
   }
@@ -24,7 +26,7 @@ export default function Header() {
         <nav className="header__nav">
           <a href="#donate" className="header__nav-link">Donate</a>
           {isAuthenticated ? (
-            <Link to="/dashboard" className="header__nav-link header__nav-link--cta">Dashboard</Link>
+            <Link to={user?.role === 'ADMIN' ? "/admin/dashboard" : "/dashboard"} className="header__nav-link header__nav-link--cta">Dashboard</Link>
           ) : (
             <Link to="/login" className="header__nav-link header__nav-link--cta">Sign In/Sign Up</Link>
           )}

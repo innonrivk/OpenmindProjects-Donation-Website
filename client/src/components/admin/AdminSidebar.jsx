@@ -21,6 +21,7 @@ export default function AdminSidebar() {
     { label: 'Tiers', path: '/admin/dashboard/tiers', icon: '⭐' },
     { label: 'Milestones', path: '/admin/dashboard/milestones', icon: '🏆' },
     { label: 'Transactions', path: '/admin/dashboard/transactions', icon: '📊' },
+    { label: 'Receipt Settings', path: '/admin/dashboard/receipts', icon: '📝' },
     { label: 'Admin Settings', path: '/admin/dashboard/settings', icon: '⚙️' },
   ];
 

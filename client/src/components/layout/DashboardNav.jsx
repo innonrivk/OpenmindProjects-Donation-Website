@@ -25,8 +25,8 @@ export default function DashboardNav() {
 
         <div className="dashboard-nav__links">
           <Link
-            to="/dashboard"
-            className={`dashboard-nav__link ${isActive('/dashboard') ? 'dashboard-nav__link--active' : ''}`}
+            to={user?.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard'}
+            className={`dashboard-nav__link ${isActive('/dashboard') || isActive('/admin/dashboard') ? 'dashboard-nav__link--active' : ''}`}
           >
             <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
               <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />

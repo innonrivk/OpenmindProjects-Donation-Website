@@ -20,16 +20,16 @@ const WebsiteContentSchema = z.object({
  * any tier — they allow donors to input an arbitrary amount.
  */
 const DonationBoxSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
+  title: z.string().optional().default(''),
   amount: z.number().int().min(0, 'Amount must be at least 0'),
   tierId: z.number().int().nullable().optional(),
-  tierDetails: z.string().optional(),
-  perks: z.array(z.string()).optional(),
-  buttonText: z.string().optional(),
-  isCustomAmount: z.boolean().optional(),
-  isRecurring: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-  displayOrder: z.number().int().optional(),
+  tierDetails: z.string().optional().default(''),
+  perks: z.array(z.string()).optional().default([]),
+  buttonText: z.string().optional().default('Donate'),
+  isCustomAmount: z.boolean().optional().default(false),
+  isRecurring: z.boolean().optional().default(true),
+  isActive: z.boolean().optional().default(true),
+  displayOrder: z.number().int().optional().default(0),
 });
 
 // --- WebsiteContent CRUD ---

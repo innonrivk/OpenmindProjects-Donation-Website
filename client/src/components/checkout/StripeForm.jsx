@@ -29,7 +29,7 @@ function getFriendlyError(errorCode, fallbackMessage) {
   return fallbackMessage || 'Something went wrong. Please try again.';
 }
 
-export default function StripeForm({ amount, onClose, isRecurring = true }) {
+export default function StripeForm({ amount, onClose, isRecurring = true, box = null, tiers = [] }) {
   const stripe = useStripe();
   const elements = useElements();
 
@@ -70,11 +70,44 @@ export default function StripeForm({ amount, onClose, isRecurring = true }) {
   const [infoVerified, setInfoVerified] = useState(false);
 
   const getTierName = (amt) => {
+    if (isRecurring && box && box.title) {
+      return box.title;
+    }
+    if (isRecurring && Array.isArray(tiers) && tiers.length > 0) {
+      const matchedTier = tiers.find(t => {
+        const matchesMin = amt >= t.minAmount;
+        const matchesMax = t.maxAmount === null || t.maxAmount === undefined || amt <= t.maxAmount;
+        return matchesMin && matchesMax;
+      });
+      if (matchedTier) {
+        return matchedTier.name;
+      }
+    }
     if (amt >= 170) return 'Patron';
     if (amt >= 85) return 'Shareholder';
     return 'Regular';
   };
+
   const getTierPerks = (amt) => {
+    if (isRecurring && box && Array.isArray(box.perks) && box.perks.length > 0) {
+      return box.perks;
+    }
+    if (isRecurring && Array.isArray(tiers) && tiers.length > 0) {
+      const matchedTier = tiers.find(t => {
+        const matchesMin = amt >= t.minAmount;
+        const matchesMax = t.maxAmount === null || t.maxAmount === undefined || amt <= t.maxAmount;
+        return matchesMin && matchesMax;
+      });
+      if (matchedTier) {
+        try {
+          return typeof matchedTier.perks === 'string'
+            ? JSON.parse(matchedTier.perks)
+            : (Array.isArray(matchedTier.perks) ? matchedTier.perks : []);
+        } catch {
+          return [];
+        }
+      }
+    }
     if (amt >= 170) return ['All Shareholder perks', 'Sponsor name on camp t-shirts', 'Quarterly social thank-yous'];
     if (amt >= 85) return ['All Regular perks', 'Campaign creation voting', 'Quarterly meetings & extra votes'];
     return ['Monthly updates newsletter', 'Yearly zoom impact event', 'Discounted OMP group tours'];
