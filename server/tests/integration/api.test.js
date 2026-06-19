@@ -144,7 +144,7 @@ test('Integration: Easy Admin Login & Decoupled Token Upgrade Pattern', async (t
   let donorCookie = '';
   let adminToken = '';
 
-  await t.test('POST /public/auth/login succeeds with admin credentials and returns user profile with role: ADMIN', async () => {
+  await t.test('POST /public/auth/login succeeds with admin credentials and returns user profile with role: SYSADMIN', async () => {
     const res = await fetch(`${BASE_URL}/public/auth/login`, {
       method: 'POST',
       headers: {
@@ -159,7 +159,7 @@ test('Integration: Easy Admin Login & Decoupled Token Upgrade Pattern', async (t
     assert.strictEqual(res.status, 200);
     const data = await res.json();
     assert.strictEqual(data.status, 'LOGGED_IN');
-    assert.strictEqual(data.user.role, 'ADMIN');
+    assert.strictEqual(data.user.role, 'SYSADMIN');
 
     const setCookie = res.headers.get('set-cookie');
     assert.ok(setCookie, 'Expected public auth token cookie to be set');
@@ -191,7 +191,7 @@ test('Integration: Easy Admin Login & Decoupled Token Upgrade Pattern', async (t
     const data = await res.json();
     assert.strictEqual(data.status, 'UPGRADED');
     assert.ok(data.accessToken);
-    assert.strictEqual(data.user.role, 'ADMIN');
+    assert.strictEqual(data.user.role, 'SYSADMIN');
     adminToken = data.accessToken;
 
     const setCookie = res.headers.get('set-cookie');

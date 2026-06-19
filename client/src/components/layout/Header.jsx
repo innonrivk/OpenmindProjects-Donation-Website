@@ -1,6 +1,7 @@
 import './Header.css';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { isAdmin } from '../../config/permissions';
 
 export default function Header() {
   let isAuthenticated = false;
@@ -26,7 +27,7 @@ export default function Header() {
         <nav className="header__nav">
           <a href="#donate" className="header__nav-link">Donate</a>
           {isAuthenticated ? (
-            <Link to={user?.role === 'ADMIN' ? "/admin/dashboard" : "/dashboard"} className="header__nav-link header__nav-link--cta">Dashboard</Link>
+            <Link to={isAdmin(user?.role) ? "/admin/dashboard" : "/dashboard"} className="header__nav-link header__nav-link--cta">Dashboard</Link>
           ) : (
             <Link to="/login" className="header__nav-link header__nav-link--cta">Sign In/Sign Up</Link>
           )}

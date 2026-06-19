@@ -1,20 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import { isAdmin } from '../config/permissions';
 import './LoginPage.css';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, googleLogin } = useAuth();
-  const { upgradeAdminSession } = useAdminAuth();
+  const { login, googleLogin, isAuthenticated: isDonorAuthenticated, user: donorUser } = useAuth();
+  const { upgradeAdminSession, isAuthenticated: isAdminAuthenticated } = useAdminAuth();
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    async function autoUpgrade() {
+      if (isDonorAuthenticated && isAdmin(donorUser?.role) && !isAdminAuthenticated) {
+        setLoading(true);
+        try {
+          await upgradeAdminSession();
+          navigate('/admin/dashboard', { replace: true });
+        } catch (err) {
+          // Silent failure: let them log in manually
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+    autoUpgrade();
+  }, [isDonorAuthenticated, donorUser, isAdminAuthenticated, upgradeAdminSession, navigate]);
 
   const from = location.state?.from || '/dashboard';
 
@@ -30,7 +47,7 @@ export default function LoginPage() {
 
     try {
       const result = await login({ email: form.email, password: form.password });
-      if (result.user?.role === 'ADMIN') {
+      if (isAdmin(result.user?.role)) {
         await upgradeAdminSession();
         navigate('/admin/dashboard', { replace: true });
       } else {
@@ -48,7 +65,7 @@ export default function LoginPage() {
     setError('');
     try {
       const result = await googleLogin({ credential: credentialResponse.credential });
-      if (result.user?.role === 'ADMIN') {
+      if (isAdmin(result.user?.role)) {
         await upgradeAdminSession();
         navigate('/admin/dashboard', { replace: true });
       } else {

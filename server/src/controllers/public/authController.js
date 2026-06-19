@@ -133,6 +133,35 @@ export async function googleLogin(req, res, next) {
       }
     }
 
+    // Check if the user email has a pre-assigned admin role
+    const allowedAdmin = await prisma.allowedAdminEmail.findUnique({
+      where: { email: email.toLowerCase().trim() },
+    });
+
+    if (allowedAdmin && user.role !== allowedAdmin.role) {
+      const originalRole = user.role;
+      user = await prisma.$transaction(async (tx) => {
+        const updated = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            role: allowedAdmin.role,
+            tokenVersion: { increment: 1 },
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: user.id, // Self-promotion actor representation since user initiates the OAuth login
+            targetUserId: user.id,
+            action: 'AUTO_PROMOTE_GOOGLE',
+            oldValue: originalRole,
+            newValue: allowedAdmin.role,
+            ipAddress: req.ip || req.headers['x-forwarded-for'] || null,
+          },
+        });
+        return updated;
+      });
+    }
+
     issueTokenCookie(res, user);
     return res.status(200).json({
       status: 'LOGGED_IN',

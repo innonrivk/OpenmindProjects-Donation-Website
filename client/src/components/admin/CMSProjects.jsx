@@ -138,8 +138,8 @@ export default function CMSProjects() {
                 <div className="cms-form__field">
                   <label>Project Status</label>
                   <select {...register('status')}>
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
+                    <option value="ACTIVE" style={{ color: '#000000', background: '#ffffff' }}>Active</option>
+                    <option value="INACTIVE" style={{ color: '#000000', background: '#ffffff' }}>Inactive</option>
                   </select>
                   {errors.status && <span className="field-error">{errors.status.message}</span>}
                 </div>

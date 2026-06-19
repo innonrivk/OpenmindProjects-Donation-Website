@@ -6,13 +6,17 @@ import CMSTiers from '../components/admin/CMSTiers';
 import CMSMilestones from '../components/admin/CMSMilestones';
 import CMSTransactions from '../components/admin/CMSTransactions';
 import CMSReceiptSettings from '../components/admin/CMSReceiptSettings';
+import CMSUsers from '../components/admin/CMSUsers';
 import EditContentPage from './admin/EditContentPage';
 import AdminSettingsPage from './admin/AdminSettingsPage';
+import AdminRoleGuard from '../components/router/AdminRoleGuard';
+import { PERMISSIONS } from '../config/permissions';
 import './AdminDashboardPage.css';
 
 /**
  * AdminDashboardPage — Master layout for administrative dashboard.
  * Separates sections utilizing React Router nesting for seamless page state retention.
+ * Enforces declarative authorization checks on sub-routes.
  *
  * @returns {JSX.Element}
  */
@@ -22,14 +26,51 @@ export default function AdminDashboardPage() {
       <AdminSidebar />
       <main className="admin-content">
         <Routes>
-          <Route path="/" element={<EditContentPage />} />
-          <Route path="/projects" element={<CMSProjects />} />
-          <Route path="/donation-boxes" element={<CMSDonationBoxes />} />
-          <Route path="/tiers" element={<CMSTiers />} />
-          <Route path="/milestones" element={<CMSMilestones />} />
-          <Route path="/transactions" element={<CMSTransactions />} />
-          <Route path="/receipts" element={<CMSReceiptSettings />} />
-          <Route path="/settings" element={<AdminSettingsPage />} />
+          <Route path="/" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_EDIT_CONTENT}>
+              <EditContentPage />
+            </AdminRoleGuard>
+          } />
+          <Route path="/projects" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_MANAGE_PROJECTS}>
+              <CMSProjects />
+            </AdminRoleGuard>
+          } />
+          <Route path="/donation-boxes" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_MANAGE_DONATIONS}>
+              <CMSDonationBoxes />
+            </AdminRoleGuard>
+          } />
+          <Route path="/tiers" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_MANAGE_DONATIONS}>
+              <CMSTiers />
+            </AdminRoleGuard>
+          } />
+          <Route path="/milestones" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_MANAGE_DONATIONS}>
+              <CMSMilestones />
+            </AdminRoleGuard>
+          } />
+          <Route path="/transactions" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_VIEW_TRANSACTIONS}>
+              <CMSTransactions />
+            </AdminRoleGuard>
+          } />
+          <Route path="/receipts" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_MANAGE_RECEIPTS}>
+              <CMSReceiptSettings />
+            </AdminRoleGuard>
+          } />
+          <Route path="/settings" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_MANAGE_SETTINGS}>
+              <AdminSettingsPage />
+            </AdminRoleGuard>
+          } />
+          <Route path="/users" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_MANAGE_USERS}>
+              <CMSUsers />
+            </AdminRoleGuard>
+          } />
         </Routes>
       </main>
     </div>

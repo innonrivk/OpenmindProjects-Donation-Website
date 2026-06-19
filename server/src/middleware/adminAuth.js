@@ -8,6 +8,8 @@ import prisma from '../lib/prisma.js';
  */
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'dev-admin-secret-DO-NOT-USE-IN-PROD';
 
+const ADMIN_ROLES = ['CONTENT_ADMIN', 'OPERATIONS_ADMIN', 'SUPER_ADMIN', 'SYSADMIN'];
+
 /**
  * Admin JWT verification middleware.
  *
@@ -47,7 +49,7 @@ export async function requireAdminAuth(req, res, next) {
   try {
     const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
 
-    if (decoded.role !== 'ADMIN') {
+    if (!ADMIN_ROLES.includes(decoded.role)) {
       return res.status(403).json({
         error: 'forbidden',
         message: 'Insufficient privileges. Admin role required.',
@@ -57,13 +59,21 @@ export async function requireAdminAuth(req, res, next) {
     // Live DB verification — ensures deactivated/demoted admins are rejected
     const dbUser = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, email: true, role: true, isActive: true },
+      select: { id: true, email: true, role: true, isActive: true, tokenVersion: true },
     });
 
-    if (!dbUser || !dbUser.isActive || dbUser.role !== 'ADMIN') {
+    if (!dbUser || !dbUser.isActive || !ADMIN_ROLES.includes(dbUser.role)) {
       return res.status(403).json({
         error: 'forbidden',
         message: 'Admin account has been deactivated or privileges revoked.',
+      });
+    }
+
+    // Assert that the JWT's tokenVersion matches the current DB version to handle instant session invalidation
+    if (dbUser.tokenVersion !== decoded.tokenVersion) {
+      return res.status(401).json({
+        error: 'invalid_token',
+        message: 'Session invalidated. Please log in again.',
       });
     }
 
@@ -94,13 +104,14 @@ export async function requireAdminAuth(req, res, next) {
  *
  * Why? Admin tokens expire in 1 hour to limit the blast radius of token theft.
  * Tokens are returned in the response body (not cookies) for SPA consumption.
+ * We include the tokenVersion to enable immediate session revocation upon role changes.
  *
- * @param {{ id: string, email: string, role: string }} user - Admin user record.
+ * @param {{ id: string, email: string, role: string, tokenVersion: number }} user - Admin user record.
  * @returns {string} Signed JWT string.
  */
 export function issueAdminToken(user) {
   return jwt.sign(
-    { userId: user.id, email: user.email, role: user.role },
+    { userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion },
     ADMIN_JWT_SECRET,
     { expiresIn: '1h' }
   );

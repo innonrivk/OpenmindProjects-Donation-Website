@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import DashboardNav from '../components/layout/DashboardNav';
+import { isAdmin } from '../config/permissions';
 import * as api from '../services/api';
 import './SettingsPage.css';
 
@@ -398,7 +399,7 @@ export default function SettingsPage() {
               {/* Delete User */}
               <div className="settings-form" style={{ paddingTop: '20px' }}>
                 <h4 style={{ margin: 0, color: '#ea4335', fontSize: '15px' }}>Permanently Delete Account</h4>
-                {user?.role === 'ADMIN' ? (
+                {isAdmin(user?.role) ? (
                   <p className="settings-info" style={{ marginTop: '10px' }}>
                     Account management options are not available for this account type.
                   </p>

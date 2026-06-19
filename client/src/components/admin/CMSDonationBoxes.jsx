@@ -264,9 +264,9 @@ export default function CMSDonationBoxes() {
                 <div className="cms-form__field">
                   <label>Link to Level/Tier</label>
                   <select {...register('tierId')}>
-                    <option value="">-- No Linked Tier --</option>
+                    <option value="" style={{ color: '#000000', background: '#ffffff' }}>-- No Linked Tier --</option>
                     {tiers.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name} (${t.minAmount}+)</option>
+                      <option key={t.id} value={t.id} style={{ color: '#000000', background: '#ffffff' }}>{t.name} (${t.minAmount}+)</option>
                     ))}
                   </select>
                 </div>

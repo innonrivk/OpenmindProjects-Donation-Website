@@ -9,6 +9,8 @@ import { sendEmail } from '../../services/email.js';
 
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'dev-admin-secret-DO-NOT-USE-IN-PROD';
 
+const ADMIN_ROLES = ['CONTENT_ADMIN', 'OPERATIONS_ADMIN', 'SUPER_ADMIN', 'SYSADMIN'];
+
 const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -38,7 +40,7 @@ export async function adminLogin(req, res, next) {
     const { email, password } = parsed.data;
     const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user || user.role !== 'ADMIN' || !user.password) {
+    if (!user || !ADMIN_ROLES.includes(user.role) || !user.password) {
       return res.status(401).json({
         error: ErrorCodes.INVALID_CREDENTIALS,
         message: 'Invalid email or password.',
@@ -57,7 +59,7 @@ export async function adminLogin(req, res, next) {
 
     // Issue a 7-day refresh token for admin users
     const refreshToken = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion },
       ADMIN_JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -115,7 +117,7 @@ export async function adminRefresh(req, res, next) {
     }
 
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-    if (!user || user.role !== 'ADMIN') {
+    if (!user || !ADMIN_ROLES.includes(user.role) || user.tokenVersion !== decoded.tokenVersion) {
       return res.status(403).json({
         error: ErrorCodes.FORBIDDEN,
         message: 'Access denied.',
@@ -172,7 +174,7 @@ export async function getMe(req, res, next) {
       where: { id: req.adminUser.userId },
     });
 
-    if (!user || user.role !== 'ADMIN') {
+    if (!user || !ADMIN_ROLES.includes(user.role)) {
       return res.status(404).json({
         error: ErrorCodes.USER_NOT_FOUND,
         message: 'Admin user not found.',
@@ -209,7 +211,7 @@ export async function upgradeSession(req, res, next) {
       where: { id: req.user.userId },
     });
 
-    if (!user || user.role !== 'ADMIN' || !user.isActive) {
+    if (!user || !ADMIN_ROLES.includes(user.role) || !user.isActive) {
       return res.status(403).json({
         error: 'forbidden',
         message: 'Insufficient privileges or account deactivated.',
@@ -219,7 +221,7 @@ export async function upgradeSession(req, res, next) {
     const accessToken = issueAdminToken(user);
 
     const refreshToken = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion },
       ADMIN_JWT_SECRET,
       { expiresIn: '7d' }
     );

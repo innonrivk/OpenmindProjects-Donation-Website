@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { isAdmin } from '../config/permissions';
 import './NotFoundPage.css';
 
 export default function NotFoundPage() {
@@ -11,7 +12,7 @@ export default function NotFoundPage() {
     // AuthProvider not available
   }
 
-  const dashboardPath = user?.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard';
+  const dashboardPath = isAdmin(user?.role) ? '/admin/dashboard' : '/dashboard';
 
   return (
     <div className="notfound-page">

@@ -12,7 +12,7 @@ test('Edge-Case: Token Tampering & Expiry', async (t) => {
   await t.test('Admin route rejects token with invalid signature', async () => {
     // Generate token signed with wrong secret
     const badToken = jwt.sign(
-      { userId: 'admin-123', email: 'admin@omp.org', role: 'ADMIN' },
+      { userId: 'admin-123', email: 'admin@omp.org', role: 'SYSADMIN', tokenVersion: 0 },
       'wrong-signing-secret'
     );
 
@@ -29,7 +29,7 @@ test('Edge-Case: Token Tampering & Expiry', async (t) => {
 
   await t.test('Admin route rejects expired token', async () => {
     const expiredToken = jwt.sign(
-      { userId: 'admin-123', email: 'admin@omp.org', role: 'ADMIN' },
+      { userId: 'admin-123', email: 'admin@omp.org', role: 'SYSADMIN', tokenVersion: 0 },
       ADMIN_JWT_SECRET,
       { expiresIn: '-10s' }
     );

@@ -133,7 +133,7 @@ export async function signup(req, res, next) {
     }
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    const user = await prisma.user.create({
+    let user = await prisma.user.create({
       data: {
         email,
         firstName,
@@ -143,10 +143,39 @@ export async function signup(req, res, next) {
       },
     });
 
+    // Check if the user email has a pre-assigned admin role
+    const allowedAdmin = await prisma.allowedAdminEmail.findUnique({
+      where: { email: email.toLowerCase().trim() },
+    });
+
+    if (allowedAdmin && user.role !== allowedAdmin.role) {
+      const originalRole = user.role;
+      user = await prisma.$transaction(async (tx) => {
+        const updated = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            role: allowedAdmin.role,
+            tokenVersion: { increment: 1 },
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: user.id,
+            targetUserId: user.id,
+            action: 'AUTO_PROMOTE_SIGNUP',
+            oldValue: originalRole,
+            newValue: allowedAdmin.role,
+            ipAddress: req.ip || req.headers['x-forwarded-for'] || null,
+          },
+        });
+        return updated;
+      });
+    }
+
     issueTokenCookie(res, user);
     return res.status(201).json({
       status: 'CREATED',
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role },
     });
   } catch (error) {
     next(error);
@@ -213,16 +242,45 @@ export async function verifyOtp(req, res, next) {
       }
 
       const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-      const user = await prisma.user.update({
+      let user = await prisma.user.update({
         where: { email },
         data: { password: hashedPassword },
       });
+
+      // Check if the user email has a pre-assigned admin role
+      const allowedAdmin = await prisma.allowedAdminEmail.findUnique({
+        where: { email: email.toLowerCase().trim() },
+      });
+
+      if (allowedAdmin && user.role !== allowedAdmin.role) {
+        const originalRole = user.role;
+        user = await prisma.$transaction(async (tx) => {
+          const updated = await tx.user.update({
+            where: { id: user.id },
+            data: {
+              role: allowedAdmin.role,
+              tokenVersion: { increment: 1 },
+            },
+          });
+          await tx.auditLog.create({
+            data: {
+              actorId: user.id,
+              targetUserId: user.id,
+              action: 'AUTO_PROMOTE_OTP',
+              oldValue: originalRole,
+              newValue: allowedAdmin.role,
+              ipAddress: req.ip || req.headers['x-forwarded-for'] || null,
+            },
+          });
+          return updated;
+        });
+      }
 
       issueTokenCookie(res, user);
       return res.status(201).json({
         status: 'ACTIVATED',
         message: 'Account activated successfully.',
-        user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
+        user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role },
       });
     }
 

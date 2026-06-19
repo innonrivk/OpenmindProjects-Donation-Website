@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import cors from 'cors';
 import { requireAdminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/rbacAuth.js';
+import { PERMISSIONS } from '../../config/permissions.js';
 import authRoutes from './auth.js';
 import contentRoutes from './content.js';
 import projectRoutes from './projects.js';
@@ -8,6 +10,7 @@ import tierRoutes from './tiers.js';
 import milestoneRoutes from './milestones.js';
 import transactionRoutes from './transactions.js';
 import receiptSettingsRoutes from './receiptSettings.js';
+import usersRoutes from './users.js';
 
 const router = Router();
 
@@ -35,12 +38,13 @@ router.use(
 // Why? Ensures authentication endpoints bypass auth requirement checks.
 router.use('/auth', authRoutes);
 
-// Apply requireAdminAuth middleware to all subsequent admin sub-routers
-router.use('/content', requireAdminAuth, contentRoutes);
-router.use('/projects', requireAdminAuth, projectRoutes);
-router.use('/tiers', requireAdminAuth, tierRoutes);
-router.use('/milestones', requireAdminAuth, milestoneRoutes);
-router.use('/transactions', requireAdminAuth, transactionRoutes);
-router.use('/receipt-settings', requireAdminAuth, receiptSettingsRoutes);
+// Apply requireAdminAuth middleware to all subsequent admin sub-routers, combined with specific permission checks
+router.use('/content', requireAdminAuth, requirePermission(PERMISSIONS.CAN_EDIT_CONTENT), contentRoutes);
+router.use('/projects', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_PROJECTS), projectRoutes);
+router.use('/tiers', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_DONATIONS), tierRoutes);
+router.use('/milestones', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_DONATIONS), milestoneRoutes);
+router.use('/transactions', requireAdminAuth, requirePermission(PERMISSIONS.CAN_VIEW_TRANSACTIONS), transactionRoutes);
+router.use('/receipt-settings', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_RECEIPTS), receiptSettingsRoutes);
+router.use('/users', requireAdminAuth, usersRoutes);
 
 export default router;

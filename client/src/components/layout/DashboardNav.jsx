@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { isAdmin } from '../../config/permissions';
 import './DashboardNav.css';
 
 export default function DashboardNav() {
@@ -22,10 +23,10 @@ export default function DashboardNav() {
           <span className="gradient-text">OMP</span>
           <span className="dashboard-nav__brand-sub">OpenmindProjects</span>
         </Link>
-
+ 
         <div className="dashboard-nav__links">
           <Link
-            to={user?.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard'}
+            to={isAdmin(user?.role) ? '/admin/dashboard' : '/dashboard'}
             className={`dashboard-nav__link ${isActive('/dashboard') || isActive('/admin/dashboard') ? 'dashboard-nav__link--active' : ''}`}
           >
             <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">

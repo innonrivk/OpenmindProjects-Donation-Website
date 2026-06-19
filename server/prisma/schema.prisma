@@ -10,6 +10,10 @@ datasource db {
 enum UserRole {
   DONOR
   ADMIN
+  CONTENT_ADMIN
+  OPERATIONS_ADMIN
+  SUPER_ADMIN
+  SYSADMIN
 }
 
 enum TransactionStatus {
@@ -37,6 +41,7 @@ model User {
   lastName           String              @map("last_name")
   country            String              @default("")
   role               UserRole            @default(DONOR)
+  tokenVersion       Int                 @default(0) @map("token_version")
   stripeCustomerId   String?             @unique @map("stripe_customer_id")
   monthlyAmount      Int                 @default(0) @map("monthly_amount")
   isActive           Boolean             @default(true) @map("is_active")
@@ -224,4 +229,30 @@ model SiteText {
   @@index([section])
   @@map("site_text")
 }
+
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  actorId      String   @map("actor_id")
+  targetUserId String?  @map("target_user_id")
+  action       String
+  oldValue     String?  @map("old_value")
+  newValue     String?  @map("new_value")
+  ipAddress    String?  @map("ip_address")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([targetUserId])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model AllowedAdminEmail {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  role      UserRole
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("allowed_admin_emails")
+}
+
 

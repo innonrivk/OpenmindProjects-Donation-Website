@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
+import { PERMISSIONS, ROLE_PERMISSIONS } from '../../config/permissions';
 import './AdminSidebar.css';
 
 /**
@@ -15,15 +16,18 @@ export default function AdminSidebar() {
   const location = useLocation();
 
   const navItems = [
-    { label: 'Text edit site', path: '/admin/dashboard', icon: '💬' },
-    { label: 'Active Projects', path: '/admin/dashboard/projects', icon: '📂' },
-    { label: 'Donation Boxes', path: '/admin/dashboard/donation-boxes', icon: '🎁' },
-    { label: 'Tiers', path: '/admin/dashboard/tiers', icon: '⭐' },
-    { label: 'Milestones', path: '/admin/dashboard/milestones', icon: '🏆' },
-    { label: 'Transactions', path: '/admin/dashboard/transactions', icon: '📊' },
-    { label: 'Receipt Settings', path: '/admin/dashboard/receipts', icon: '📝' },
-    { label: 'Admin Settings', path: '/admin/dashboard/settings', icon: '⚙️' },
+    { label: 'Text edit site', path: '/admin/dashboard', icon: '💬', permission: PERMISSIONS.CAN_EDIT_CONTENT },
+    { label: 'Active Projects', path: '/admin/dashboard/projects', icon: '📂', permission: PERMISSIONS.CAN_MANAGE_PROJECTS },
+    { label: 'Donation Boxes', path: '/admin/dashboard/donation-boxes', icon: '🎁', permission: PERMISSIONS.CAN_MANAGE_DONATIONS },
+    { label: 'Tiers', path: '/admin/dashboard/tiers', icon: '⭐', permission: PERMISSIONS.CAN_MANAGE_DONATIONS },
+    { label: 'Milestones', path: '/admin/dashboard/milestones', icon: '🏆', permission: PERMISSIONS.CAN_MANAGE_DONATIONS },
+    { label: 'Transactions', path: '/admin/dashboard/transactions', icon: '📊', permission: PERMISSIONS.CAN_VIEW_TRANSACTIONS },
+    { label: 'Receipt Settings', path: '/admin/dashboard/receipts', icon: '📝', permission: PERMISSIONS.CAN_MANAGE_RECEIPTS },
+    { label: 'Admin Settings', path: '/admin/dashboard/settings', icon: '⚙️', permission: PERMISSIONS.CAN_MANAGE_SETTINGS },
+    { label: 'User Management', path: '/admin/dashboard/users', icon: '👥', permission: PERMISSIONS.CAN_MANAGE_USERS },
   ];
+
+  const userPermissions = admin ? ROLE_PERMISSIONS[admin.role] : null;
 
   return (
     <aside className="admin-sidebar">
@@ -38,30 +42,34 @@ export default function AdminSidebar() {
         <div className="profile-avatar">{admin?.firstName?.[0] || 'A'}</div>
         <div className="profile-info">
           <span className="profile-name">{admin ? `${admin.firstName} ${admin.lastName}` : 'Administrator'}</span>
-          <span className="profile-role">Portal Owner</span>
+          <span className="profile-role" style={{ textTransform: 'capitalize', fontSize: '0.8rem', opacity: 0.7 }}>
+            {admin?.role ? admin.role.replace('_', ' ').toLowerCase() : 'Administrator'}
+          </span>
         </div>
       </div>
 
       <nav className="admin-sidebar__nav">
         <ul>
-          {navItems.map((item) => {
-            const isActive =
-              item.path === '/admin/dashboard'
-                ? location.pathname === '/admin/dashboard' || location.pathname === '/admin/dashboard/'
-                : location.pathname.startsWith(item.path);
+          {navItems
+            .filter((item) => userPermissions && userPermissions.has(item.permission))
+            .map((item) => {
+              const isActive =
+                item.path === '/admin/dashboard'
+                  ? location.pathname === '/admin/dashboard' || location.pathname === '/admin/dashboard/'
+                  : location.pathname.startsWith(item.path);
 
-            return (
-              <li key={item.path}>
-                <Link
-                  to={item.path}
-                  className={`nav-link ${isActive ? 'active' : ''}`}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  <span className="nav-label">{item.label}</span>
-                </Link>
-              </li>
-            );
-          })}
+              return (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    className={`nav-link ${isActive ? 'active' : ''}`}
+                  >
+                    <span className="nav-icon">{item.icon}</span>
+                    <span className="nav-label">{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
         </ul>
       </nav>
 

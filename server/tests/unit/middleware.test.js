@@ -86,7 +86,7 @@ test('requireAdminAuth middleware tests', async (t) => {
 
   await t.test('returns 401 when token has expired', async () => {
     const token = jwt.sign(
-      { userId: 'admin-123', email: 'admin@omp.org', role: 'ADMIN' },
+      { userId: 'admin-123', email: 'admin@omp.org', role: 'SYSADMIN', tokenVersion: 0 },
       ADMIN_JWT_SECRET,
       { expiresIn: '-1s' } // Expired instantly
     );
@@ -114,7 +114,7 @@ test('requireAdminAuth middleware tests', async (t) => {
           email: 'admin@openmindprojects.org',
           firstName: 'System',
           lastName: 'Administrator',
-          role: 'ADMIN',
+          role: 'SYSADMIN',
           isActive: true,
           skipWelcomeEmail: true,
         },
@@ -122,7 +122,7 @@ test('requireAdminAuth middleware tests', async (t) => {
     }
 
     const token = jwt.sign(
-      { userId: adminUser.id, email: adminUser.email, role: 'ADMIN' },
+      { userId: adminUser.id, email: adminUser.email, role: 'SYSADMIN', tokenVersion: adminUser.tokenVersion },
       ADMIN_JWT_SECRET
     );
     const req = { headers: { authorization: `Bearer ${token}` } };
