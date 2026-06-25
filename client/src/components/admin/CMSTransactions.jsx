@@ -1,80 +1,134 @@
-import { useQuery } from '@tanstack/react-query';
-import { adminApi } from '../../lib/api';
-import TransactionRow from './TransactionRow';
+import { useState } from 'react';
+import LedgerTab from './LedgerTab.jsx';
+import AnalyticsTab from './AnalyticsTab.jsx';
 
 /**
- * CMSTransactions — Auditing interface displaying live donor stats and logs.
+ * Helper to convert a Date object to local YYYY-MM-DD string format.
+ *
+ * @param {Date} date
+ * @returns {string} Formatted local date.
+ */
+function formatLocalDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * CMSTransactions — Auditing and trends portal for administrator review.
+ *
+ * Why? Provides the shell interface that integrates a detailed transactional
+ * ledger with a high-level analytics line graph. State is lifted up here
+ * to support drill-down filtering: clicking a chart node modifies ledger
+ * filters and brings the user back to the ledger view seamlessly.
  */
 export default function CMSTransactions() {
-  // 1. Fetch metrics
-  const { data: metrics = {}, isLoading: loadingMetrics } = useQuery({
-    queryKey: ['admin-metrics'],
-    queryFn: async () => {
-      const { data } = await adminApi.get('/transactions/metrics');
-      return data;
-    },
-  });
+  const [activeTab, setActiveTab] = useState('LEDGER'); // 'LEDGER' | 'ANALYTICS'
 
-  // 2. Fetch transaction logs
-  const { data: logData = {}, isLoading: loadingLogs } = useQuery({
-    queryKey: ['admin-transactions'],
-    queryFn: async () => {
-      const { data } = await adminApi.get('/transactions?limit=25');
-      return data;
-    },
-  });
+  // Lifted filter states shared with LedgerTab so that Analytics drill-down works
+  const [filterMode, setFilterMode] = useState('ALL');
+  const [inputStartDate, setInputStartDate] = useState('');
+  const [inputEndDate, setInputEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState(null);
+  const [appliedEndDate, setAppliedEndDate] = useState(null);
+  const [donationType, setDonationType] = useState('ALL');
 
-  const transactions = logData.transactions || [];
+  /**
+   * Action handler called when a user clicks a line node on the analytics chart.
+   * Modifies the shared filter variables to reflect the clicked period and
+   * switches the active view back to the Detailed Ledger.
+   *
+   * @param {object} params
+   * @param {string} params.start - ISO date string of period start.
+   * @param {string} params.end - ISO date string of period end.
+   * @param {string} params.label - Display label of clicked node.
+   */
+  const handleDrillDown = ({ start, end }) => {
+    setAppliedStartDate(start);
+    setAppliedEndDate(end);
 
-  if (loadingMetrics || loadingLogs) {
-    return <div className="admin-loading">Loading transaction records...</div>;
-  }
+    // Synchronize inputs so the ledger date filter forms visually align
+    const startObj = new Date(start);
+    const endObj = new Date(end);
+    setInputStartDate(formatLocalDate(startObj));
+    setInputEndDate(formatLocalDate(endObj));
 
-  const cards = [
-    { title: 'Total Donated', value: `$${((metrics.totalDonatedCents || 0) / 100).toLocaleString()}`, desc: 'Gross receipts' },
-    { title: 'Total Registered Donors', value: metrics.totalDonors || 0, desc: 'Registered supporters' },
-    { title: 'Active Subscribers', value: metrics.activeSubscribers || 0, desc: 'Recurring monthly' },
-    { title: 'Monthly Projected (MRR)', value: `$${(metrics.projectedMrrUsd || 0).toLocaleString()}`, desc: 'Active subscriptions' },
-  ];
+    setFilterMode('CUSTOM');
+    setActiveTab('LEDGER');
+  };
 
   return (
     <div className="cms-section">
-      <div className="cms-section__header" style={{ marginBottom: '24px' }}>
-        <h2>Donation Activity & Ledger</h2>
+      <div className="cms-section__header" style={{ marginBottom: '16px', borderBottom: 'none' }}>
+        <h2>Donation Activity &amp; Ledger</h2>
       </div>
 
-      <div className="metrics-grid">
-        {cards.map((card, i) => (
-          <div key={i} className="metric-card glass">
-            <span className="metric-card__title">{card.title}</span>
-            <span className="metric-card__value gradient-text">{card.value}</span>
-            <span className="metric-card__desc">{card.desc}</span>
-          </div>
-        ))}
+      {/* Tabs Header bar */}
+      <div
+        className="cms-tabs"
+        style={{
+          display: 'flex',
+          gap: '16px',
+          borderBottom: '1px solid var(--color-border)',
+          marginBottom: '24px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab('LEDGER')}
+          style={{
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'LEDGER' ? '2px solid var(--color-accent-primary)' : '2px solid transparent',
+            color: activeTab === 'LEDGER' ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
+            padding: '8px 16px',
+            fontWeight: 600,
+            fontSize: 'var(--font-size-sm)',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Ledger
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('ANALYTICS')}
+          style={{
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'ANALYTICS' ? '2px solid var(--color-accent-primary)' : '2px solid transparent',
+            color: activeTab === 'ANALYTICS' ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
+            padding: '8px 16px',
+            fontWeight: 600,
+            fontSize: 'var(--font-size-sm)',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Analytics
+        </button>
       </div>
 
-      <div className="cms-table-container" style={{ marginTop: '32px' }}>
-        <h3>Recent Transactions</h3>
-        <table className="cms-table">
-          <thead>
-            <tr>
-              <th>Invoice/PI ID</th>
-              <th>Donor</th>
-              <th>Email</th>
-              <th>Amount</th>
-              <th>Status</th>
-              <th>Type</th>
-              <th>Subject</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((tx) => (
-              <TransactionRow key={tx.id} tx={tx} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Conditionally Render Active Tab content */}
+      {activeTab === 'LEDGER' ? (
+        <LedgerTab
+          filterMode={filterMode}
+          setFilterMode={setFilterMode}
+          donationType={donationType}
+          setDonationType={setDonationType}
+          inputStartDate={inputStartDate}
+          setInputStartDate={setInputStartDate}
+          inputEndDate={inputEndDate}
+          setInputEndDate={setInputEndDate}
+          appliedStartDate={appliedStartDate}
+          setAppliedStartDate={setAppliedStartDate}
+          appliedEndDate={appliedEndDate}
+          setAppliedEndDate={setAppliedEndDate}
+        />
+      ) : (
+        <AnalyticsTab onDrillDown={handleDrillDown} />
+      )}
     </div>
   );
 }

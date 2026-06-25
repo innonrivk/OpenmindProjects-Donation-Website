@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { seedHistoricalTransactions } from './seedTransactions.js';
 
 const prisma = new PrismaClient();
 
@@ -68,7 +69,7 @@ async function main() {
       email: adminEmail,
       firstName: 'System',
       lastName: 'Administrator',
-      role: 'ADMIN',
+      role: 'SYSADMIN',
       isProtected: true,
       password: adminPasswordHash,
       country: 'Global',
@@ -385,6 +386,9 @@ async function main() {
     ],
   });
   console.log('  ✅ Donation milestones seeded');
+
+  // Seed historical transaction records across a 2-year range to facilitate testing dashboard date filters.
+  await seedHistoricalTransactions(prisma);
 
   console.log('\n🎉 Database seeded successfully!');
 

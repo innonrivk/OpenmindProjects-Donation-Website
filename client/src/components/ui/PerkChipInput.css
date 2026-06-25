@@ -102,3 +102,17 @@
   color: var(--color-text-muted, #80868b);
 }
 
+.perk-chip-input-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.perk-chip-input__help-text {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #80868b);
+  margin-top: 6px;
+  margin-left: 4px;
+}
+
+

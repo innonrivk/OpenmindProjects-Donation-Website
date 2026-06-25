@@ -25,6 +25,19 @@ export async function getTransactions(req, res, next) {
     if (req.query.userId) {
       where.userId = req.query.userId;
     }
+    if (req.query.start_date || req.query.end_date) {
+      where.createdAt = {};
+      if (req.query.start_date) where.createdAt.gte = new Date(req.query.start_date);
+      if (req.query.end_date) where.createdAt.lte = new Date(req.query.end_date);
+    }
+    // Apply donation type filter via Transaction.isRecurring (Boolean field on the model)
+    // No schema change needed — isRecurring already exists on Transaction.
+    if (req.query.donation_type === 'MONTHLY') {
+      where.isRecurring = true;
+    } else if (req.query.donation_type === 'ONE_TIME') {
+      where.isRecurring = false;
+    }
+    // donation_type === 'ALL' or absent → no isRecurring filter applied
 
     const [transactions, totalCount] = await Promise.all([
       prisma.transaction.findMany({
@@ -102,35 +115,67 @@ export async function getTransactionDetails(req, res, next) {
  */
 export async function getMetrics(req, res, next) {
   try {
-    // 1. Total succeeded donations (in cents)
+    // Parse donation_type early — drives isRecurring clauses and recurring metric short-circuit
+    const donationType = req.query.donation_type; // 'MONTHLY' | 'ONE_TIME' | undefined/'ALL'
+
+    const txWhere = { status: 'SUCCEEDED' };
+    const userWhere = { role: 'DONOR' };
+
+    if (req.query.start_date || req.query.end_date) {
+      const dateFilter = {};
+      if (req.query.start_date) dateFilter.gte = new Date(req.query.start_date);
+      if (req.query.end_date) dateFilter.lte = new Date(req.query.end_date);
+      txWhere.createdAt = dateFilter;
+      userWhere.createdAt = dateFilter;
+    }
+
+    // Apply isRecurring to the transaction aggregate
+    if (donationType === 'MONTHLY') {
+      txWhere.isRecurring = true;
+    } else if (donationType === 'ONE_TIME') {
+      txWhere.isRecurring = false;
+    }
+
+    // Scope donor count by donation type via a relation filter.
+    // Why `some` and not `every`? A donor can have both types; `some` correctly
+    // identifies donors who have at least one transaction of the requested type.
+    if (donationType === 'MONTHLY') {
+      userWhere.transactions = { some: { isRecurring: true } };
+    } else if (donationType === 'ONE_TIME') {
+      userWhere.transactions = { some: { isRecurring: false } };
+    }
+
+    // 1. Total succeeded donations (in cents) — respects both date and type filters
     const totalDonatedAgg = await prisma.transaction.aggregate({
-      where: { status: 'SUCCEEDED' },
+      where: txWhere,
       _sum: { amount: true },
     });
     const totalDonatedCents = totalDonatedAgg._sum.amount ?? 0;
 
-    // 2. Count of unique donors
+    // 2. Count of unique donors — respects both date and type filters
     const totalDonors = await prisma.user.count({
-      where: { role: 'DONOR' },
+      where: userWhere,
     });
 
-    // 3. Count of active recurring subscriptions
-    const activeSubscribers = await prisma.user.count({
-      where: {
-        role: 'DONOR',
-        monthlyAmount: { gt: 0 },
-      },
-    });
+    // 3 & 4. Active Subscribers and MRR are always all-time recurring metrics.
+    // When ONE_TIME is selected they are semantically irrelevant — return 0
+    // immediately without running the queries (performance + spec compliance).
+    let activeSubscribers = 0;
+    let projectedMrrUsd = 0;
 
-    // 4. Monthly recurring revenue (MRR) projection in USD
-    const mrrAgg = await prisma.user.aggregate({
-      where: {
-        role: 'DONOR',
-        monthlyAmount: { gt: 0 },
-      },
-      _sum: { monthlyAmount: true },
-    });
-    const projectedMrrUsd = mrrAgg._sum.monthlyAmount ?? 0;
+    if (donationType !== 'ONE_TIME') {
+      const [subCount, mrrAgg] = await Promise.all([
+        prisma.user.count({
+          where: { role: 'DONOR', monthlyAmount: { gt: 0 } },
+        }),
+        prisma.user.aggregate({
+          where: { role: 'DONOR', monthlyAmount: { gt: 0 } },
+          _sum: { monthlyAmount: true },
+        }),
+      ]);
+      activeSubscribers = subCount;
+      projectedMrrUsd = mrrAgg._sum.monthlyAmount ?? 0;
+    }
 
     return res.status(200).json({
       totalDonatedCents,

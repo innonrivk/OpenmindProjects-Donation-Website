@@ -90,6 +90,7 @@ test('RBAC Session Invalidation: tokenVersion mismatch', async (t) => {
           role: 'SYSADMIN',
           isActive: true,
           tokenVersion: 1,
+          skipWelcomeEmail: true,
         },
       });
     }

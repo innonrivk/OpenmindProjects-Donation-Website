@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useId } from 'react';
 import './PerkChipInput.css';
 
 /**
@@ -26,6 +26,8 @@ export default function PerkChipInput({
   placeholder = 'Type a perk and press Enter...',
 }) {
   const [inputValue, setInputValue] = useState('');
+  // Why useId? Generates stable, unique ID for accessibility (aria-describedby)
+  const helpTextId = useId();
 
   const handleKeyDown = (e) => {
     if (disabled) return;
@@ -61,55 +63,63 @@ export default function PerkChipInput({
   };
 
   return (
-    <div className={`perk-chip-input ${disabled ? 'perk-chip-input--disabled' : ''}`}>
-      <div className="perk-chip-input__wrapper">
-        {value.map((chip, idx) => (
-          <div
-            key={idx}
-            className={`perk-chip-input__chip ${disabled ? 'perk-chip-input__chip--disabled' : ''}`}
-          >
-            {disabled && (
-              <svg
-                className="perk-chip-input__lock-icon"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-            )}
-            <span className="perk-chip-input__chip-text">{chip}</span>
-            {!disabled && (
-              <button
-                type="button"
-                className="perk-chip-input__remove-btn"
-                onClick={() => handleRemoveChip(idx)}
-                aria-label={`Remove perk: ${chip}`}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        ))}
-        {!disabled && (
-          <input
-            type="text"
-            className="perk-chip-input__field"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={handleBlur}
-            placeholder={value.length === 0 ? placeholder : ''}
-          />
-        )}
+    <div className="perk-chip-input-container">
+      <div className={`perk-chip-input ${disabled ? 'perk-chip-input--disabled' : ''}`}>
+        <div className="perk-chip-input__wrapper">
+          {value.map((chip, idx) => (
+            <div
+              key={idx}
+              className={`perk-chip-input__chip ${disabled ? 'perk-chip-input__chip--disabled' : ''}`}
+            >
+              {disabled && (
+                <svg
+                  className="perk-chip-input__lock-icon"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              )}
+              <span className="perk-chip-input__chip-text">{chip}</span>
+              {!disabled && (
+                <button
+                  type="button"
+                  className="perk-chip-input__remove-btn"
+                  onClick={() => handleRemoveChip(idx)}
+                  aria-label={`Remove perk: ${chip}`}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          {!disabled && (
+            <input
+              type="text"
+              className="perk-chip-input__field"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleBlur}
+              placeholder={value.length === 0 ? placeholder : ''}
+              aria-describedby={helpTextId}
+            />
+          )}
+        </div>
       </div>
+      {!disabled && (
+        <span id={helpTextId} className="perk-chip-input__help-text">
+          Press "Enter" to add the chip.
+        </span>
+      )}
     </div>
   );
 }

@@ -174,7 +174,7 @@ export default function CMSUsers() {
                     >
                       <option value="CONTENT_ADMIN" style={{ color: '#000000', background: '#ffffff' }}>Content Admin</option>
                       <option value="OPERATIONS_ADMIN" style={{ color: '#000000', background: '#ffffff' }}>Operations Admin</option>
-                      <option value="SUPER_ADMIN" style={{ color: '#000000', background: '#ffffff' }}>Super Admin</option>
+                      <option value="SUPER_ADMIN" style={{ color: '#000000', background: '#ffffff' }}>Bookkeeping Admin</option>
                       <option value="SYSADMIN" style={{ color: '#000000', background: '#ffffff' }}>Sysadmin</option>
                     </select>
                   </td>

@@ -1,10 +1,8 @@
 import '../../src/lib/env.js';
 import { test } from 'node:test';
 import assert from 'node:assert';
-
 const TEST_PORT = process.env.TEST_PORT || '3002';
 const BASE_URL = `http://localhost:${TEST_PORT}/api/v1`;
-
 // Test clients
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:5174';
@@ -12,9 +10,7 @@ const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:5174';
 test('Integration: Public Endpoints & CORS checks', async (t) => {
   await t.test('GET /public/content returns website data and includes client CORS header', async () => {
     const res = await fetch(`${BASE_URL}/public/content`, {
-      headers: {
-        Origin: CLIENT_URL,
-      },
+      headers: { Origin: CLIENT_URL },
     });
 
     assert.strictEqual(res.status, 200);
@@ -23,20 +19,14 @@ test('Integration: Public Endpoints & CORS checks', async (t) => {
     assert.ok(Array.isArray(data.donationBoxes));
     assert.ok(Array.isArray(data.projects));
 
-    // Assert CORS header for public client
     const allowOrigin = res.headers.get('access-control-allow-origin');
     assert.strictEqual(allowOrigin, CLIENT_URL);
   });
 
   await t.test('GET /public/content refuses admin origin CORS header', async () => {
     const res = await fetch(`${BASE_URL}/public/content`, {
-      headers: {
-        Origin: 'http://malicious-domain.com',
-      },
+      headers: { Origin: 'http://malicious-domain.com' },
     });
-
-    // Depending on CORS package configuration, it might either omit the header or set it strictly.
-    // If it configures origin properly, it won't reflect malicious-domain.com
     const allowOrigin = res.headers.get('access-control-allow-origin');
     assert.notStrictEqual(allowOrigin, 'http://malicious-domain.com');
   });
@@ -44,7 +34,6 @@ test('Integration: Public Endpoints & CORS checks', async (t) => {
 
 test('Integration: Admin Auth Flow & Protected Routing & CORS checks', async (t) => {
   let adminToken = '';
-
   let adminRefreshTokenCookie = '';
 
   await t.test('POST /admin/auth/login succeeds with correct credentials and returns JWT', async () => {
@@ -118,6 +107,42 @@ test('Integration: Admin Auth Flow & Protected Routing & CORS checks', async (t)
     const data = await res.json();
     assert.ok(Array.isArray(data));
     assert.ok(data.length > 0);
+  });
+
+  await t.test('GET /admin/transactions/analytics/donations succeeds with valid Bearer token', async () => {
+    assert.ok(adminToken, 'Pre-condition failed: Admin token was not generated.');
+    const res = await fetch(`${BASE_URL}/admin/transactions/analytics/donations`, {
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        Origin: ADMIN_URL,
+      },
+    });
+
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.monthly);
+    assert.ok(data.yearly);
+    assert.strictEqual(data.monthly.length, 12);
+    assert.strictEqual(data.yearly.length, 10);
+    
+    assert.ok(data.monthly[0].period);
+    assert.ok('monthly' in data.monthly[0]);
+    assert.ok('oneTime' in data.monthly[0]);
+  });
+
+  await t.test('GET /admin/transactions/analytics/donations/download succeeds with valid Bearer token', async () => {
+    assert.ok(adminToken, 'Pre-condition failed: Admin token was not generated.');
+    const res = await fetch(`${BASE_URL}/admin/transactions/analytics/donations/download`, {
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        Origin: ADMIN_URL,
+      },
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.headers.get('content-type')?.includes('image/svg+xml'));
+    const contentDisposition = res.headers.get('content-disposition');
+    assert.ok(contentDisposition && contentDisposition.includes('attachment; filename="donation_chart_'));
   });
 
   await t.test('POST /admin/auth/logout clears the refresh cookie', async () => {

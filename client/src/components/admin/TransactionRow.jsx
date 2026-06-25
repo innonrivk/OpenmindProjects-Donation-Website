@@ -34,33 +34,43 @@ export default function TransactionRow({ tx }) {
       return data;
     },
     onMutate: async ({ id, subject, adminNote }) => {
-      // 1. Cancel outgoing queries to prevent overwrites
+      // Cancel any active/inactive queries matching the prefix to prevent race conditions or updates overwriting our optimistic state.
       await queryClient.cancelQueries({ queryKey: ['admin-transactions'] });
 
-      // 2. Snapshot current ledger data for rollback
-      const previousData = queryClient.getQueryData(['admin-transactions']);
+      // We retrieve all cached transaction queries because date filters result in dynamic query keys (e.g. ['admin-transactions', start, end]).
+      // Snapshotting all of them ensures we can safely rollback any partial or stale views if the server request fails.
+      const queries = queryClient.getQueryCache().findAll({ queryKey: ['admin-transactions'] });
+      const previousData = queries.map((query) => ({
+        queryKey: query.queryKey,
+        data: query.state.data,
+      }));
 
-      // 3. Apply optimistic updates immediately
-      queryClient.setQueryData(['admin-transactions'], (old) => {
-        if (!old || !old.transactions) return old;
-        return {
-          ...old,
-          transactions: old.transactions.map((t) =>
-            t.id === id ? { ...t, subject: subject || null, adminNote: adminNote || null } : t
-          )
-        };
+      // Optimistically update all matching cache entries immediately so the admin sees the change in their current filter view.
+      queries.forEach((query) => {
+        queryClient.setQueryData(query.queryKey, (old) => {
+          if (!old || !old.transactions) return old;
+          return {
+            ...old,
+            transactions: old.transactions.map((t) =>
+              t.id === id ? { ...t, subject: subject || null, adminNote: adminNote || null } : t
+            )
+          };
+        });
       });
 
       return { previousData };
     },
     onError: (err, newVars, context) => {
-      // Roll back to previous state if API call fails
+      // Restore all original snapshots to revert the optimistic updates across all relevant filters.
       if (context?.previousData) {
-        queryClient.setQueryData(['admin-transactions'], context.previousData);
+        context.previousData.forEach(({ queryKey, data }) => {
+          queryClient.setQueryData(queryKey, data);
+        });
       }
       setValidationError(err.response?.data?.message || err.message || 'Save failed.');
     },
     onSuccess: () => {
+      // Invalidation with prefix matching triggers a background refetch for all matching keys to ensure synchronization.
       queryClient.invalidateQueries({ queryKey: ['admin-transactions'] });
       setIsExpanded(false);
     }

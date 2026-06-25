@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { requireAdminAuth } from '../../middleware/adminAuth.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbacAuth.js';
+import { PERMISSIONS } from '../../config/permissions.js';
 import {
   adminLogin,
   adminRefresh,
@@ -37,9 +39,9 @@ router.get('/me', requireAdminAuth, getMe);
 /**
  * Authenticated admin settings endpoints.
  */
-router.post('/settings/password-otp', requireAdminAuth, requestPasswordOtp);
-router.post('/settings/change-password', requireAdminAuth, changePassword);
-router.post('/settings/email-otp', requireAdminAuth, requestEmailOtp);
-router.post('/settings/change-email', requireAdminAuth, changeEmail);
+router.post('/settings/password-otp', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_SETTINGS), requestPasswordOtp);
+router.post('/settings/change-password', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_SETTINGS), changePassword);
+router.post('/settings/email-otp', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_SETTINGS), requestEmailOtp);
+router.post('/settings/change-email', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_SETTINGS), changeEmail);
 
 export default router;

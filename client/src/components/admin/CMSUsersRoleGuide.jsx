@@ -49,7 +49,7 @@ export default function CMSUsersRoleGuide() {
     },
     {
       role: 'SUPER_ADMIN',
-      title: 'Super Admin',
+      title: 'Bookkeeping Admin',
       color: '#b06000', // High contrast yellow-brown for WCAG compliance
       access: [
         'All content & operations privileges',
