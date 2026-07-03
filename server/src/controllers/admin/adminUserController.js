@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import prisma from '../../lib/prisma.js';
+import { recalculateUserTiers } from '../../services/tierAssignmentService.js';
 
 const ChangeRoleSchema = z.object({
   role: z.enum(['CONTENT_ADMIN', 'OPERATIONS_ADMIN', 'SUPER_ADMIN', 'SYSADMIN']),
@@ -114,9 +115,8 @@ export async function changeUserRole(req, res, next) {
           actorId: req.adminUser.userId,
           action: 'INVITE_ROLE_CHANGE',
           oldValue: entry.role,
-          newValue: newRole,
           newValue: `Email: ${entry.email}, Role: ${newRole}`,
-          ipAddress: req.ip || req.headers['x-forwarded-for'] || null,
+          ipAddress: req.ip || null,
         },
       });
 
@@ -269,3 +269,208 @@ export async function removeAdmin(req, res, next) {
     next(error);
   }
 }
+
+/**
+ * List all standard donor users and their assigned tiers (both manual and auto).
+ *
+ * Why? Provides the admin user interface with the list of standard donors to allow tier management.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+export async function listDonors(req, res, next) {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const search = req.query.search ? String(req.query.search).trim() : '';
+
+    const skip = (page - 1) * limit;
+
+    const where = {
+      role: 'DONOR',
+    };
+
+    if (search) {
+      where.OR = [
+        { email: { contains: search } },
+        { firstName: { contains: search } },
+        { lastName: { contains: search } },
+      ];
+    }
+
+    const [donors, totalCount] = await prisma.$transaction([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          monthlyAmount: true,
+          isActive: true,
+          createdAt: true,
+          userTiers: {
+            include: {
+              tier: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return res.status(200).json({
+      donors,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+const AssignTierSchema = z.object({
+  tierId: z.number({ coerce: true }).int().positive(),
+});
+
+/**
+ * Manually assign a tier to a user.
+ *
+ * Why? Allows administrators to assign custom perks/tiers independent of transaction amounts.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+export async function assignTierToUser(req, res, next) {
+  try {
+    const userId = req.params.id;
+    
+    const parsed = AssignTierSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'validation_error',
+        message: 'Invalid Tier ID specified.',
+        fields: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const { tierId: tierIdParsed } = parsed.data;
+
+    const [user, tier] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId } }),
+      prisma.tier.findUnique({ where: { id: tierIdParsed } }),
+    ]);
+
+    if (!user) {
+      return res.status(404).json({ error: 'not_found', message: 'User not found.' });
+    }
+    if (!tier) {
+      return res.status(404).json({ error: 'not_found', message: 'Tier not found.' });
+    }
+
+    if (tier.isAutoAppliedBySum) {
+      return res.status(409).json({
+        error: 'conflict',
+        message: `"${tier.name}" is automatically assigned based on monthly subscription amount and cannot be manually assigned. Use a standalone override tier (e.g. VIP Patron) instead.`,
+      });
+    }
+
+    const userTier = await prisma.userTier.upsert({
+      where: {
+        userId_tierId: {
+          userId,
+          tierId: tierIdParsed,
+        },
+      },
+      create: {
+        userId,
+        tierId: tierIdParsed,
+        assignedBy: 'MANUAL',
+      },
+      update: {
+        assignedBy: 'MANUAL',
+      },
+    });
+
+    // Automatically recalculate auto-assigned tiers immediately
+    await recalculateUserTiers(userId);
+
+    return res.status(200).json({
+      status: 'SUCCESS',
+      message: `Tier "${tier.name}" manually assigned to user.`,
+      userTier,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Manually remove an assigned tier from a user.
+ *
+ * Why? Allows administrators to revoke manually assigned tiers.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+export async function removeTierFromUser(req, res, next) {
+  try {
+    const userId = req.params.id;
+    const tierId = parseInt(req.params.tierId, 10);
+
+    if (isNaN(tierId)) {
+      return res.status(400).json({ error: 'validation_error', message: 'Invalid Tier ID.' });
+    }
+
+    const existing = await prisma.userTier.findUnique({
+      where: {
+        userId_tierId: {
+          userId,
+          tierId,
+        },
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'not_found', message: 'User does not hold this tier.' });
+    }
+
+    if (existing.assignedBy === 'AUTO_SUM') {
+      return res.status(409).json({
+        error: 'conflict',
+        message: 'This tier is automatically assigned based on subscription amount and cannot be removed manually.',
+      });
+    }
+
+    await prisma.userTier.delete({
+      where: {
+        userId_tierId: {
+          userId,
+          tierId,
+        },
+      },
+    });
+
+    // Automatically recalculate auto-assigned tiers immediately
+    // so if the user still qualifies via subscription, they don't lose the tier
+    await recalculateUserTiers(userId);
+
+    return res.status(200).json({
+      status: 'SUCCESS',
+      message: 'Tier removed from user successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+

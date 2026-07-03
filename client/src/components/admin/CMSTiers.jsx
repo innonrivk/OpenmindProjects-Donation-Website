@@ -14,6 +14,7 @@ const TierFormSchema = z.object({
   minAmount: z.preprocess((val) => parseInt(val, 10), z.number().int().min(0)),
   maxAmount: z.preprocess((val) => (val === '' ? null : parseInt(val, 10)), z.number().int().min(0).nullable().optional()),
   perks: z.array(z.string()).optional(),
+  isAutoAppliedBySum: z.boolean().optional(),
 });
 
 export default function CMSTiers() {
@@ -42,7 +43,7 @@ export default function CMSTiers() {
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(TierFormSchema),
-    defaultValues: { tierLevel: 1, name: '', minAmount: 0, maxAmount: '' },
+    defaultValues: { tierLevel: 1, name: '', minAmount: 0, maxAmount: '', isAutoAppliedBySum: false },
   });
 
   const saveMutation = useMutation({
@@ -90,11 +91,12 @@ export default function CMSTiers() {
         name: tier.name,
         minAmount: tier.minAmount,
         maxAmount: tier.maxAmount === null ? '' : tier.maxAmount,
+        isAutoAppliedBySum: tier.isAutoAppliedBySum ?? false,
       });
     } else {
       setEditingTier(null);
       setPerks([]);
-      reset({ tierLevel: tiers.length + 1, name: '', minAmount: 0, maxAmount: '' });
+      reset({ tierLevel: tiers.length + 1, name: '', minAmount: 0, maxAmount: '', isAutoAppliedBySum: false });
     }
     setIsFormOpen(true);
   };
@@ -168,6 +170,11 @@ export default function CMSTiers() {
                 </div>
               </div>
 
+              <div className="cms-form__field cms-form__field--checkbox" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px', marginTop: '16px' }}>
+                <input type="checkbox" id="isAutoAppliedBySum" {...register('isAutoAppliedBySum')} style={{ width: 'auto', margin: 0, height: '18px', width: '18px', cursor: 'pointer' }} />
+                <label htmlFor="isAutoAppliedBySum" style={{ margin: 0, cursor: 'pointer', fontWeight: '500', color: 'var(--color-text-primary)' }}>Automatically apply this tier when total donation meets threshold</label>
+              </div>
+
               <div className="cms-form__field" style={{ marginTop: '16px' }}>
                 <label>Tier Perks List (Chips)</label>
                 <PerkChipInput
@@ -201,6 +208,11 @@ export default function CMSTiers() {
               <div className="cms-card__amount">
                 ${tier.minAmount} {tier.maxAmount != null ? `– $${tier.maxAmount}` : '+'} / mo
               </div>
+              {tier.isAutoAppliedBySum && (
+                <div style={{ fontSize: '0.8rem', background: 'rgba(52, 168, 83, 0.1)', color: 'var(--brand-green)', display: 'inline-block', padding: '2px 8px', borderRadius: '12px', marginTop: '6px', fontWeight: '500' }}>
+                  Auto-Applied
+                </div>
+              )}
               <div style={{ margin: '12px 0' }}>
                 <PerkChipInput
                   value={getTierPerks(tier)}

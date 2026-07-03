@@ -166,3 +166,7 @@ export function deleteAccount(data) {
   });
 }
 
+export function cancelUserTier(tierId) {
+  return request(`/subscriptions/tiers/${tierId}`, { method: 'DELETE' });
+}
+

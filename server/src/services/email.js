@@ -3,6 +3,7 @@ import { generateReceiptPdf } from './receiptPdf.js';
 import { buildReceiptHtml } from './email/templates/receiptTemplate.js';
 import { buildAmountChangedHtml } from './email/templates/amountChangedTemplate.js';
 import { buildCancelScheduledHtml } from './email/templates/cancelScheduledTemplate.js';
+import { generateCertBuffer, interpolateTokens } from './certPdfService.js';
 
 /**
  * Startup fail-fast configuration validation.
@@ -321,5 +322,71 @@ export async function sendCancelScheduledEmail({ to, donorName, amount }) {
     printLine('\u2500'.repeat(width - 4), '33');
     console.log('\x1b[33m\u255a' + borderChar.repeat(width - 2) + '\u255d\x1b[0m\n');
   }
+  return sentSuccessfully;
+}
+
+/**
+ * Sends a templated email using an EmailTemplate record from the Communication Hub.
+ * Optionally attaches a generated certificate PDF when pdfConfig is present.
+ *
+ * Why extend existing email.js? Keeps a single transport layer (Nodemailer SMTP pool)
+ * and avoids introducing a second email abstraction.
+ *
+ * @param {string} to - Recipient email address.
+ * @param {object} template - EmailTemplate record with subject, bodyHtml, pdfConfig.
+ * @param {object} context - Variable interpolation context { donorName, amount, ... }.
+ * @returns {Promise<boolean>} True if dispatch succeeded.
+ */
+export async function sendTemplatedEmail(to, template, context) {
+  const subject = interpolateTokens(template.subject, context);
+  const html = interpolateTokens(template.bodyHtml, context);
+  let attachments = [];
+
+  if (template.pdfConfig) {
+    try {
+      const pdfBuffer = await generateCertBuffer(template.pdfConfig, context);
+      attachments = [{
+        filename: 'certificate.pdf',
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      }];
+    } catch (pdfErr) {
+      process.stderr.write(
+        JSON.stringify({
+          level: 'ERROR',
+          ts: new Date().toISOString(),
+          event: 'CERT_PDF_GENERATION_FAILURE',
+          error: pdfErr.message,
+        }) + '\n'
+      );
+    }
+  }
+
+  let sentSuccessfully = false;
+  try {
+    await transporter.sendMail({ from: smtpFrom, to, subject, html, attachments });
+    process.stdout.write(
+      JSON.stringify({
+        level: 'INFO',
+        ts: new Date().toISOString(),
+        event: 'TEMPLATED_EMAIL_DISPATCH_SUCCESS',
+        to,
+        subject,
+        hasPdf: attachments.length > 0,
+      }) + '\n'
+    );
+    sentSuccessfully = true;
+  } catch (err) {
+    process.stderr.write(
+      JSON.stringify({
+        level: 'ERROR',
+        ts: new Date().toISOString(),
+        event: 'TEMPLATED_EMAIL_DISPATCH_FAILURE',
+        to,
+        error: err.message,
+      }) + '\n'
+    );
+  }
+
   return sentSuccessfully;
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prismaPublic.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { triggerAutomation } from '../../services/automationService.js';
 
 const router = Router();
 
@@ -69,6 +70,35 @@ router.post('/claim', requireAuth, async (req, res, next) => {
           milestoneId,
         },
       });
+    });
+
+    // Resolve user context and trigger automation asynchronously in the background
+    setImmediate(async () => {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: req.user.userId },
+          select: { firstName: true, lastName: true, email: true },
+        });
+
+        if (user) {
+          const context = {
+            donorName: `${user.firstName} ${user.lastName}`,
+            donorEmail: user.email,
+            milestoneLabel: milestone.label,
+            milestoneAmount: milestone.amountUsd,
+          };
+          await triggerAutomation('MILESTONE_CLAIMED', context);
+        }
+      } catch (err) {
+        process.stderr.write(
+          JSON.stringify({
+            level: 'ERROR',
+            ts: new Date().toISOString(),
+            event: 'MILESTONE_CLAIM_AUTOMATION_FAILURE',
+            error: err.message,
+          }) + '\n'
+        );
+      }
     });
 
     return res.status(201).json({

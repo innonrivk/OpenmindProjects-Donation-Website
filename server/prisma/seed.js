@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { seedHistoricalTransactions } from './seedTransactions.js';
+import { recalculateUserTiers } from '../src/services/tierAssignmentService.js';
 
 const prisma = new PrismaClient();
 
@@ -31,6 +32,11 @@ async function main() {
   }
 
   // ── Cleanup existing data (order matters for FK constraints) ──
+  await prisma.adminRoleAssignment.deleteMany();
+  await prisma.automationTrigger.deleteMany();
+  await prisma.dispatchLog.deleteMany();
+  await prisma.emailTemplate.deleteMany();
+  await prisma.userTier.deleteMany();
   await prisma.vote.deleteMany();
   await prisma.claimedMilestone.deleteMany();
   await prisma.transaction.deleteMany();
@@ -84,6 +90,7 @@ async function main() {
       name: 'Regular',
       minAmount: 1,
       maxAmount: 84,
+      isAutoAppliedBySum: true,
       perks: [
         'Monthly updates from our newsletter',
         'Invitation to "OMP\'s yearly impact" yearly zoom event',
@@ -99,6 +106,7 @@ async function main() {
       name: 'Shareholder',
       minAmount: 85,
       maxAmount: 169,
+      isAutoAppliedBySum: true,
       perks: [
         'All Regular tier perks',
         'Quarter meetings: progression and behind the scenes — your opinions shape marketing research',
@@ -115,6 +123,7 @@ async function main() {
       name: 'Patron',
       minAmount: 170,
       maxAmount: null,
+      isAutoAppliedBySum: true,
       perks: [
         'All Shareholder tier perks',
         'Your name on the back of camp t-shirts in the "sponsors" section',
@@ -390,8 +399,6 @@ async function main() {
   // Seed historical transaction records across a 2-year range to facilitate testing dashboard date filters.
   await seedHistoricalTransactions(prisma);
 
-  console.log('\n🎉 Database seeded successfully!');
-
   // ── Retroactive migration for one-time transactions ──
   console.log('🔄 Running retroactive migration for transaction tracking flags...');
   const updateResult = await prisma.transaction.updateMany({
@@ -408,6 +415,77 @@ async function main() {
     },
   });
   console.log(`  ✅ Corrected ${updateResult.count} one-time transactions in SQLite ledger.`);
+
+  // ── Auto-assign tiers based on donation sums ──
+  console.log('🔄 Running tier auto-assignment for all seeded donors...');
+  const allDonors = await prisma.user.findMany({
+    where: { role: 'DONOR' },
+    select: { id: true, email: true },
+  });
+  for (const donor of allDonors) {
+    await recalculateUserTiers(donor.id);
+  }
+  console.log(`  ✅ Auto-assigned tiers for ${allDonors.length} donors.`);
+
+  // ── Seed manual tier overrides for hybrid testing ──
+  // Assign Patron tier manually to the first two donors to test MANUAL + AUTO_SUM coexistence.
+  if (allDonors.length >= 2) {
+    console.log('🔄 Seeding manual tier overrides for hybrid testing...');
+    await prisma.userTier.upsert({
+      where: { userId_tierId: { userId: allDonors[0].id, tierId: patronTier.id } },
+      create: { userId: allDonors[0].id, tierId: patronTier.id, assignedBy: 'MANUAL' },
+      update: {},
+    });
+    await prisma.userTier.upsert({
+      where: { userId_tierId: { userId: allDonors[1].id, tierId: shareholderTier.id } },
+      create: { userId: allDonors[1].id, tierId: shareholderTier.id, assignedBy: 'MANUAL' },
+      update: {},
+    });
+    console.log(`  ✅ Manual tier overrides seeded for ${allDonors[0].email} and ${allDonors[1].email}.`);
+  }
+
+  // ── Seed Default Honorary Certificate Email Template & Automation Trigger ──
+  console.log('🔄 Seeding default honorary certificate email template and automation trigger...');
+  const defaultCertTemplate = await prisma.emailTemplate.create({
+    data: {
+      name: 'Honorary Certificate Template',
+      subject: 'Congratulations {donorName}! Your Honorary Certificate from OpenmindProjects',
+      bodyHtml: `
+        <h3>Dear {donorName},</h3>
+        <p>Congratulations on unlocking and claiming your milestone reward: <strong>{milestoneLabel}</strong>!</p>
+        <p>Your ongoing support enables us to build sustainable community programs and training camps. We are honored to have you as part of our journey.</p>
+        <p>Please find your official honorary certificate attached to this email.</p>
+        <p>Best regards,<br/>The OpenmindProjects Team</p>
+      `.trim(),
+      pdfConfig: {
+        fields: [
+          { type: 'text', x: 200, y: 120, value: 'Honorary Certificate', fontSize: 32, color: '#4285f4' },
+          { type: 'text', x: 260, y: 170, value: 'of Appreciation', fontSize: 20, color: '#6b7280' },
+          { type: 'text', x: 100, y: 260, value: 'This certificate is proudly presented to:', fontSize: 14, color: '#202124', align: 'center', width: 641 },
+          { type: 'text', x: 100, y: 310, value: '{donorName}', fontSize: 28, color: '#202124', align: 'center', width: 641 },
+          { type: 'text', x: 100, y: 390, value: 'In recognition of unlocking the OMP milestone objective:', fontSize: 12, color: '#6b7280', align: 'center', width: 641 },
+          { type: 'text', x: 100, y: 420, value: '{milestoneLabel}', fontSize: 18, color: '#4285f4', align: 'center', width: 641 },
+          { type: 'text', x: 100, y: 490, value: 'Awarded on: {date}', fontSize: 11, color: '#9ca3af', align: 'center', width: 641 }
+        ]
+      }
+    }
+  });
+
+  await prisma.automationTrigger.create({
+    data: {
+      eventName: 'MILESTONE_CLAIMED',
+      emailTemplateId: defaultCertTemplate.id,
+      adminAssignments: {
+        create: [
+          { role: 'SYSADMIN' },
+          { role: 'SUPER_ADMIN' }
+        ]
+      }
+    }
+  });
+  console.log('  ✅ Default template & triggers seeded');
+
+  console.log('\n🎉 Database seeded successfully!');
 }
 
 main()

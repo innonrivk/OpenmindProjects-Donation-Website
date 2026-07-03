@@ -33,6 +33,7 @@ export default function CMSTransactions() {
   const [appliedStartDate, setAppliedStartDate] = useState(null);
   const [appliedEndDate, setAppliedEndDate] = useState(null);
   const [donationType, setDonationType] = useState('ALL');
+  const [tierId, setTierId] = useState('ALL');
 
   /**
    * Action handler called when a user clicks a line node on the analytics chart.
@@ -44,7 +45,7 @@ export default function CMSTransactions() {
    * @param {string} params.end - ISO date string of period end.
    * @param {string} params.label - Display label of clicked node.
    */
-  const handleDrillDown = ({ start, end }) => {
+  const handleDrillDown = ({ start, end, donationType: chartDonationType, tierId: chartTierId }) => {
     setAppliedStartDate(start);
     setAppliedEndDate(end);
 
@@ -55,6 +56,9 @@ export default function CMSTransactions() {
     setInputEndDate(formatLocalDate(endObj));
 
     setFilterMode('CUSTOM');
+    if (chartDonationType) setDonationType(chartDonationType);
+    if (chartTierId) setTierId(chartTierId);
+    
     setActiveTab('LEDGER');
   };
 
@@ -125,6 +129,8 @@ export default function CMSTransactions() {
           setAppliedStartDate={setAppliedStartDate}
           appliedEndDate={appliedEndDate}
           setAppliedEndDate={setAppliedEndDate}
+          tierId={tierId}
+          setTierId={setTierId}
         />
       ) : (
         <AnalyticsTab onDrillDown={handleDrillDown} />

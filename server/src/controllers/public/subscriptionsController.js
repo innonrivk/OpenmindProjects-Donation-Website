@@ -1,6 +1,8 @@
 import prisma from '../../lib/prismaPublic.js';
+import prismaWrite from '../../lib/prisma.js';
 import { stripe, isMockMode, listActiveSubscriptions } from '../../services/stripe.js';
 import { sendAmountChangedEmail, sendCancelScheduledEmail } from '../../services/email.js';
+import { recalculateUserTiers } from '../../services/tierAssignmentService.js';
 
 /**
  * Handle updating the user's monthly subscription.
@@ -15,7 +17,7 @@ import { sendAmountChangedEmail, sendCancelScheduledEmail } from '../../services
  */
 export async function updateSubscription(req, res, next) {
   try {
-    const { amount } = req.body; // in dollars
+    const { amount } = req.body; // in dollars (donation type portion)
 
     const parsedAmount = Number(amount);
     if (isNaN(parsedAmount) || !Number.isInteger(parsedAmount) || parsedAmount < 1) {
@@ -27,7 +29,17 @@ export async function updateSubscription(req, res, next) {
       return res.status(404).json({ error: 'no_subscription', message: 'No active subscription found.' });
     }
 
-    const amountCents = parsedAmount * 100;
+    // Fetch manual tiers to calculate the add-on total
+    const userTiers = await prisma.userTier.findMany({
+      where: { userId: user.id, assignedBy: 'MANUAL' },
+      include: { tier: true },
+    });
+    const addOnsTotal = userTiers
+      .filter(ut => !ut.tier.isAutoAppliedBySum)
+      .reduce((sum, ut) => sum + ut.tier.minAmount, 0);
+
+    const totalAmount = parsedAmount + addOnsTotal;
+    const amountCents = totalAmount * 100;
     const donorName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Valued Donor';
 
     if (isMockMode) {
@@ -37,7 +49,7 @@ export async function updateSubscription(req, res, next) {
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          scheduledAmount: parsedAmount,
+          scheduledAmount: totalAmount,
           scheduledAmountEffectiveDate: effectiveDate,
         },
       });
@@ -46,7 +58,7 @@ export async function updateSubscription(req, res, next) {
         to: user.email,
         donorName,
         oldAmount: user.monthlyAmount,
-        newAmount: parsedAmount,
+        newAmount: totalAmount,
         effectiveDate,
       });
 
@@ -56,13 +68,13 @@ export async function updateSubscription(req, res, next) {
         event: 'MOCK_SUBSCRIPTION_UPDATE_SCHEDULED',
         userId: user.id,
         email: user.email,
-        amountDollars: parsedAmount,
+        amountDollars: totalAmount,
       }) + '\n');
 
       return res.status(200).json({
         status: 'SCHEDULED',
         message: 'Your donation update has been scheduled and will take effect at the end of the current billing period.',
-        newAmount: parsedAmount,
+        newAmount: totalAmount,
       });
     }
 
@@ -95,7 +107,7 @@ export async function updateSubscription(req, res, next) {
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        scheduledAmount: parsedAmount,
+        scheduledAmount: totalAmount,
         scheduledAmountEffectiveDate: effectiveDate,
       },
     });
@@ -104,14 +116,14 @@ export async function updateSubscription(req, res, next) {
       to: user.email,
       donorName,
       oldAmount: user.monthlyAmount,
-      newAmount: parsedAmount,
+      newAmount: totalAmount,
       effectiveDate,
     });
 
     return res.status(200).json({
       status: 'SCHEDULED',
       message: 'Your donation update has been scheduled and will take effect at the end of the current billing period.',
-      newAmount: parsedAmount,
+      newAmount: totalAmount,
     });
   } catch (error) {
     next(error);
@@ -144,14 +156,25 @@ export async function cancelSubscription(req, res, next) {
         email: user.email,
       }) + '\n');
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          monthlyAmount: 0,
-          scheduledAmount: null,
-          scheduledAmountEffectiveDate: null,
-        },
+      await prismaWrite.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            monthlyAmount: 0,
+            scheduledAmount: null,
+            scheduledAmountEffectiveDate: null,
+          },
+        });
+        await tx.userTier.deleteMany({
+          where: { userId: user.id, assignedBy: 'MANUAL' },
+        });
       });
+
+      try {
+        await recalculateUserTiers(user.id);
+      } catch (err) {
+        console.error('Failed to recalculate user tiers on mock subscription cancel:', err);
+      }
 
       return res.status(200).json({
         status: 'CANCELLED',
@@ -168,14 +191,25 @@ export async function cancelSubscription(req, res, next) {
       cancel_at_period_end: true,
     });
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        monthlyAmount: 0,
-        scheduledAmount: null,
-        scheduledAmountEffectiveDate: null,
-      },
+    await prismaWrite.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          monthlyAmount: 0,
+          scheduledAmount: null,
+          scheduledAmountEffectiveDate: null,
+        },
+      });
+      await tx.userTier.deleteMany({
+        where: { userId: user.id, assignedBy: 'MANUAL' },
+      });
     });
+
+    try {
+      await recalculateUserTiers(user.id);
+    } catch (err) {
+      console.error('Failed to recalculate user tiers on subscription cancel:', err);
+    }
 
     return res.status(200).json({
       status: 'CANCELLED',
@@ -304,6 +338,12 @@ export async function simulateRollover(req, res, next) {
       });
     });
 
+    try {
+      await recalculateUserTiers(user.id);
+    } catch (err) {
+      console.error('Failed to recalculate user tiers on simulate rollover:', err);
+    }
+
     process.stdout.write(JSON.stringify({
       level: 'INFO',
       ts: new Date().toISOString(),
@@ -317,6 +357,145 @@ export async function simulateRollover(req, res, next) {
       status: 'ROLLED_OVER',
       message: `Billing cycle simulated. Donation updated to $${scheduledAmt}/mo.`,
       newAmount: scheduledAmt,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Handle user self-cancellation of their standalone manual tiers.
+ *
+ * Why? Allow users to cancel standalone manual tiers from their dashboard,
+ * triggering auto-tier recalculation.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+export async function cancelUserTier(req, res, next) {
+  try {
+    const userId = req.user.userId;
+    const tierId = parseInt(req.params.tierId, 10);
+
+    if (isNaN(tierId)) {
+      return res.status(400).json({ error: 'validation_error', message: 'Invalid Tier ID.' });
+    }
+
+    const existing = await prisma.userTier.findUnique({
+      where: {
+        userId_tierId: {
+          userId,
+          tierId,
+        },
+      },
+      include: {
+        tier: true,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'not_found', message: 'You do not hold this tier.' });
+    }
+
+    if (existing.assignedBy === 'AUTO_SUM') {
+      return res.status(409).json({
+        error: 'conflict',
+        message: 'This tier is automatically assigned based on subscription amount and cannot be removed manually.',
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { stripeCustomerId: true, monthlyAmount: true, email: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'not_found', message: 'User not found.' });
+    }
+
+    const newMonthlyAmount = Math.max(0, user.monthlyAmount - existing.tier.minAmount);
+
+    // Update Stripe subscription
+    if (newMonthlyAmount === 0) {
+      if (!isMockMode && user.stripeCustomerId) {
+        const activeSubs = await listActiveSubscriptions(user.stripeCustomerId);
+        if (activeSubs.length > 0) {
+          await stripe.subscriptions.update(activeSubs[0].id, {
+            cancel_at_period_end: true,
+          });
+        }
+      }
+    } else {
+      if (!isMockMode && user.stripeCustomerId) {
+        const activeSubs = await listActiveSubscriptions(user.stripeCustomerId);
+        if (activeSubs.length > 0) {
+          const subscription = activeSubs[0];
+          const subscriptionItemId = subscription.items.data[0].id;
+          await stripe.subscriptions.update(subscription.id, {
+            items: [{
+              id: subscriptionItemId,
+              price_data: {
+                currency: 'usd',
+                product_data: {
+                  name: 'Monthly Donation - OpenmindProjects',
+                },
+                unit_amount: newMonthlyAmount * 100,
+                recurring: { interval: 'month' },
+              },
+            }],
+            proration_behavior: 'none',
+          });
+        }
+      }
+    }
+
+    if (isMockMode) {
+      process.stdout.write(JSON.stringify({
+        level: 'INFO',
+        ts: new Date().toISOString(),
+        event: 'MOCK_SUBSCRIPTION_REDUCED_BY_TIER_CANCEL',
+        userId: userId,
+        email: user.email,
+        oldAmountDollars: user.monthlyAmount,
+        newAmountDollars: newMonthlyAmount,
+      }) + '\n');
+    }
+
+    await prismaWrite.$transaction([
+      prismaWrite.userTier.delete({
+        where: {
+          userId_tierId: {
+            userId,
+            tierId,
+          },
+        },
+      }),
+      prismaWrite.user.update({
+        where: { id: userId },
+        data: {
+          monthlyAmount: newMonthlyAmount,
+          scheduledAmount: null,
+          scheduledAmountEffectiveDate: null,
+        },
+      }),
+      prismaWrite.auditLog.create({
+        data: {
+          actorId: userId,
+          targetUserId: userId,
+          action: 'USER_SELF_CANCEL_TIER',
+          oldValue: `Tier: "${existing.tier.name}" (ID: ${tierId}) — monthlyAmount: ${user.monthlyAmount}`,
+          newValue: `Deleted by user self-cancellation — monthlyAmount reduced to: ${newMonthlyAmount}`,
+        },
+      }),
+    ]);
+
+    // Automatically recalculate auto-assigned tiers immediately
+    await recalculateUserTiers(userId);
+
+    return res.status(200).json({
+      status: 'SUCCESS',
+      message: `Tier "${existing.tier.name}" cancelled successfully and monthly donation reduced.`,
     });
   } catch (error) {
     next(error);

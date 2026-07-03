@@ -31,7 +31,13 @@ export default function UserSummaryCard({
     Patron: { bg: 'rgba(251, 188, 4, 0.1)', border: '#fbbc04', glow: 'rgba(251, 188, 4, 0.3)' },
   };
 
-  const tc = tierColors[tier?.name] || tierColors.Regular;
+  const autoTiers = user?.tiers?.filter(t => t.assignedBy === 'AUTO_SUM') || [];
+  const currentAutoTier = autoTiers[0] || null;
+  const tc = currentAutoTier ? (tierColors[currentAutoTier.name] || tierColors.Regular) : tierColors.Regular;
+
+  const addOns = user?.tiers?.filter(t => t.assignedBy === 'MANUAL') || [];
+  const totalAddOnCost = addOns.reduce((sum, t) => sum + (t.minAmount || 0), 0);
+  const qualifyingAmount = Math.max(0, (monthlyAmount || 0) - totalAddOnCost);
 
   const isChanged = scheduledAmount && scheduledAmount !== monthlyAmount;
   const isIncrease = scheduledAmount > monthlyAmount;
@@ -53,9 +59,9 @@ export default function UserSummaryCard({
 
       <div className="dash-summary__stats">
         <div className="dash-stat">
-          <span className="dash-stat__label">Current Tier</span>
-          <span className="dash-stat__value" style={{ color: tc.border }}>
-            {tier?.name ? formatContentInline(tier.name) : 'None'}
+          <span className="dash-stat__label">Donor Type</span>
+          <span className="dash-stat__value" style={{ color: currentAutoTier ? tc.border : 'var(--color-text-muted, #9ca3af)' }}>
+            {currentAutoTier ? formatContentInline(currentAutoTier.name) : 'None'}
           </span>
         </div>
         <div className="dash-stat">
@@ -83,6 +89,28 @@ export default function UserSummaryCard({
           ) : (
             <span className="dash-stat__value">${monthlyAmount || 0}/mo</span>
           )}
+          {totalAddOnCost > 0 && (
+            <div style={{
+              marginTop: '8px',
+              paddingTop: '8px',
+              borderTop: '1px solid var(--color-border, #e5e7eb)',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              fontSize: '0.75rem',
+              color: 'var(--color-text-muted, #6b7280)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: '16px' }}>
+                <span>Donor Type:</span>
+                <span style={{ fontWeight: '700', color: 'var(--color-text-primary, #1f2937)' }}>${qualifyingAmount}/mo</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: '16px' }}>
+                <span>Add-ons:</span>
+                <span style={{ fontWeight: '700', color: 'var(--color-text-primary, #1f2937)' }}>${totalAddOnCost}/mo</span>
+              </div>
+            </div>
+          )}
         </div>
         <div className="dash-stat">
           <span className="dash-stat__label">Lifetime</span>
@@ -90,9 +118,25 @@ export default function UserSummaryCard({
         </div>
       </div>
 
-      {tier && (
-        <div className="dash-tier-badge" style={{ background: tc.bg, borderColor: tc.border }}>
-          ✦ {formatContentInline(tier.name)} Tier
+      {user?.tiers?.length > 0 && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+          {user.tiers.map((t) => {
+            const capsuleColor = tierColors[t.name] || { bg: 'rgba(66, 133, 244, 0.1)', border: '#4285f4' };
+            const suffix = t.assignedBy === 'MANUAL' ? 'Add-on' : 'Tier';
+            return (
+              <div
+                key={t.id}
+                className="dash-tier-badge"
+                style={{
+                  background: capsuleColor.bg,
+                  borderColor: capsuleColor.border,
+                  color: capsuleColor.border,
+                }}
+              >
+                ✦ {formatContentInline(t.name)} {suffix}
+              </div>
+            );
+          })}
         </div>
       )}
     </section>

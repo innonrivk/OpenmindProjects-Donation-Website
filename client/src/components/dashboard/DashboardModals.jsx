@@ -107,11 +107,25 @@ export default function DashboardModals({
         size="sm"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <p style={{ margin: 0, fontSize: '15px', color: 'var(--color-text-primary)', lineHeight: '1.5' }}>
-            Are you sure you want to update your monthly donation
-            {monthlyAmount > 0 ? ` from $${monthlyAmount}` : ''} to
-            <strong> ${pendingAmount}/mo</strong>?
-          </p>
+          {(() => {
+            const addOns = user?.tiers?.filter(t => t.assignedBy === 'MANUAL') || [];
+            const totalAddOnCost = addOns.reduce((sum, t) => sum + (t.minAmount || 0), 0);
+            const currentGeneral = Math.max(0, (monthlyAmount || 0) - totalAddOnCost);
+            const totalNewAmount = pendingAmount ? (pendingAmount + totalAddOnCost) : 0;
+
+            return (
+              <p style={{ margin: 0, fontSize: '15px', color: 'var(--color-text-primary)', lineHeight: '1.5' }}>
+                Are you sure you want to update your OMP monthly donation
+                {monthlyAmount > 0 ? ` from $${currentGeneral}/mo` : ''} to
+                <strong> ${pendingAmount}/mo</strong>?
+                {totalAddOnCost > 0 && (
+                  <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-text-muted, #6b7280)', marginTop: '8px', padding: '8px', border: '1px dashed var(--color-border)', borderRadius: '6px' }}>
+                    Your active Add-ons (${totalAddOnCost}/mo) remain unchanged, bringing your new total monthly billing to <strong>${totalNewAmount}/mo</strong>.
+                  </span>
+                )}
+              </p>
+            );
+          })()}
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
             <Button
               variant="secondary"

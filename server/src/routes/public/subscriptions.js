@@ -5,6 +5,7 @@ import {
   cancelSubscription,
   cancelScheduledSubscription,
   simulateRollover,
+  cancelUserTier,
 } from '../../controllers/public/subscriptionsController.js';
 
 const router = Router();
@@ -17,5 +18,6 @@ router.post('/update', requireAuth, updateSubscription);
 router.post('/cancel', requireAuth, cancelSubscription);
 router.post('/cancel-scheduled', requireAuth, cancelScheduledSubscription);
 router.post('/simulate-rollover', requireAuth, simulateRollover);
+router.delete('/tiers/:tierId', requireAuth, cancelUserTier);
 
 export default router;

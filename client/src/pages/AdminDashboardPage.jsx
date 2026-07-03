@@ -7,6 +7,7 @@ import CMSMilestones from '../components/admin/CMSMilestones';
 import CMSTransactions from '../components/admin/CMSTransactions';
 import CMSReceiptSettings from '../components/admin/CMSReceiptSettings';
 import CMSUsers from '../components/admin/CMSUsers';
+import CommunicationHub from '../components/admin/CommunicationHub';
 import EditContentPage from './admin/EditContentPage';
 import AdminSettingsPage from './admin/AdminSettingsPage';
 import AdminRoleGuard from '../components/router/AdminRoleGuard';
@@ -59,6 +60,11 @@ export default function AdminDashboardPage() {
           <Route path="/receipts" element={
             <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_MANAGE_RECEIPTS}>
               <CMSReceiptSettings />
+            </AdminRoleGuard>
+          } />
+          <Route path="/communications" element={
+            <AdminRoleGuard requiredPermission={PERMISSIONS.CAN_MANAGE_COMMUNICATIONS}>
+              <CommunicationHub />
             </AdminRoleGuard>
           } />
           <Route path="/settings" element={

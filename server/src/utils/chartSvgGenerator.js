@@ -79,6 +79,11 @@ export function generateSvgChart(data, view) {
     }
   });
 
+  let viewTitle = 'Last 12 Months';
+  if (view === 'YEARLY') viewTitle = 'Last 10 Years';
+  if (view === 'MONTHLY_3') viewTitle = 'Last 3 Months';
+  if (view === 'MONTHLY_6') viewTitle = 'Last 6 Months';
+
   // Assemble full vector markup
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -93,12 +98,12 @@ export function generateSvgChart(data, view) {
       </feMerge>
     </filter>
   </defs>
-
+ 
   <!-- Solid Canvas Background -->
   <rect width="${width}" height="${height}" fill="#ffffff"/>
-
+ 
   <!-- Main Chart Heading -->
-  <text x="${width / 2}" y="32" text-anchor="middle" font-family="'Inter', sans-serif" font-size="16" font-weight="700" fill="#202124">Donation Trends (${view === 'MONTHLY' ? 'Last 12 Months' : 'Last 10 Years'})</text>
+  <text x="${width / 2}" y="32" text-anchor="middle" font-family="'Inter', sans-serif" font-size="16" font-weight="700" fill="#202124">Donation Trends (${viewTitle})</text>
 
   <!-- Centered Legend Group -->
   <g transform="translate(${width / 2 - 150}, 46)">

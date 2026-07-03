@@ -84,6 +84,10 @@ async function main() {
     const edgeSuccess = await runSuite('Edge-Case Tests', resolve(__dirname, 'edge/attacks.test.js'));
     const tracksSuccess = await runSuite('Donation Track Tests', resolve(__dirname, 'edge/tracks.test.js'));
     const envSuccess = await runSuite('Env Edge-Case Tests', resolve(__dirname, 'edge/env.test.js'));
+    const tierAssignmentSuccess = await runSuite('Tier Assignment Tests', resolve(__dirname, 'unit/tierAssignment.test.js'));
+    const tiersIntegrationSuccess = await runSuite('Tiers E2E Integration Tests', resolve(__dirname, 'edge/tiers.test.js'));
+    const subUpdateSuccess = await runSuite('Subscription Update (No Card Re-entry)', resolve(__dirname, 'edge/subscription_update.test.js'));
+    const commsSuccess = await runSuite('Communications Flow Tests', resolve(__dirname, 'edge/communications.test.js'));
 
     console.log('\n📊 Test execution summary:');
     console.log(`   Unit Tests:             ${unitSuccess ? '✅ PASS' : '❌ FAIL'}`);
@@ -93,8 +97,12 @@ async function main() {
     console.log(`   Edge-Case Tests:        ${edgeSuccess ? '✅ PASS' : '❌ FAIL'}`);
     console.log(`   Donation Tracks:        ${tracksSuccess ? '✅ PASS' : '❌ FAIL'}`);
     console.log(`   Env Edge Tests:         ${envSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Tier Assignment:        ${tierAssignmentSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Tiers Integration:      ${tiersIntegrationSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Sub Update (No Card):   ${subUpdateSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Communications:         ${commsSuccess ? '✅ PASS' : '❌ FAIL'}`);
 
-    if (unitSuccess && rbacUnitSuccess && integrationSuccess && rbacIntegrationSuccess && edgeSuccess && tracksSuccess && envSuccess) {
+    if (unitSuccess && rbacUnitSuccess && integrationSuccess && rbacIntegrationSuccess && edgeSuccess && tracksSuccess && envSuccess && tierAssignmentSuccess && tiersIntegrationSuccess && subUpdateSuccess && commsSuccess) {
       console.log('\n🎉 ALL TEST SUITES PASSED SUCCESSFULLY!');
       server.kill();
       process.exit(0);

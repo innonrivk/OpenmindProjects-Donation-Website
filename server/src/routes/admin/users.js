@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { changeUserRole, listAdminUsers, removeAdmin } from '../../controllers/admin/adminUserController.js';
+import {
+  changeUserRole,
+  listAdminUsers,
+  removeAdmin,
+  listDonors,
+  assignTierToUser,
+  removeTierFromUser,
+} from '../../controllers/admin/adminUserController.js';
 import { addAllowedEmail } from '../../controllers/admin/adminAllowedEmailController.js';
 import { requirePermission } from '../../middleware/rbacAuth.js';
 import { PERMISSIONS } from '../../config/permissions.js';
@@ -17,4 +24,10 @@ router.post('/', addAllowedEmail);
 router.patch('/:id/role', changeUserRole);
 router.delete('/:id', removeAdmin);
 
+// Donor user & tier management routes
+router.get('/donors', listDonors);
+router.post('/:id/tiers', assignTierToUser);
+router.delete('/:id/tiers/:tierId', removeTierFromUser);
+
 export default router;
+

@@ -2,6 +2,7 @@ import prisma from '../../lib/prismaPublic.js';
 import { stripe } from '../../services/stripe.js';
 import { sendEmail } from '../../services/email.js';
 import { resolveSettings, interpolate } from '../../services/receiptVariables.js';
+import { recalculateUserTiers } from '../../services/tierAssignmentService.js';
 
 /**
  * Handles payment_intent.succeeded stripe webhook events.
@@ -51,6 +52,13 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     });
 
     console.log(`✅ One-time payment recorded: $${(amountPaid / 100).toFixed(2)} from ${user.email}`);
+
+    // Recalculate user tiers after one-time payment is committed
+    try {
+      await recalculateUserTiers(user.id);
+    } catch (err) {
+      console.error('Failed to recalculate user tiers on payment intent success:', err);
+    }
 
     // Send receipt in the background
     setTimeout(async () => {
@@ -151,6 +159,13 @@ async function handleInvoicePaymentSucceeded(invoice) {
         },
       });
     });
+
+    // Recalculate user tiers after invoice payment is committed
+    try {
+      await recalculateUserTiers(user.id);
+    } catch (err) {
+      console.error('Failed to recalculate user tiers on invoice payment success:', err);
+    }
 
     if (global.scheduledSubscriptionUpdates) {
       global.scheduledSubscriptionUpdates.delete(user.id);
@@ -292,15 +307,30 @@ async function handleSubscriptionDeleted(subscription) {
     where: { stripeCustomerId: customerId },
   });
   if (user) {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        monthlyAmount: 0,
-        scheduledAmount: null,
-        scheduledAmountEffectiveDate: null,
-      },
-    });
-    console.log(`🔄 Reset monthlyAmount for ${user.email} due to subscription cancellation.`);
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            monthlyAmount: 0,
+            scheduledAmount: null,
+            scheduledAmountEffectiveDate: null,
+          },
+        });
+
+        // Why? Standalone tiers are tied to the subscription payment context.
+        // When a subscription is cancelled, there's nothing left to fund them.
+        await tx.userTier.deleteMany({
+          where: { userId: user.id, assignedBy: 'MANUAL' },
+        });
+      });
+      console.log(`🔄 Reset monthlyAmount and deleted manual tiers for ${user.email} due to subscription cancellation.`);
+
+      // Recalculate user tiers after subscription is deleted
+      await recalculateUserTiers(user.id);
+    } catch (err) {
+      console.error('Failed to handle subscription cancellation:', err);
+    }
   }
 }
 

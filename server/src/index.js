@@ -15,7 +15,7 @@ app.set('trust proxy', 1);
 app.use('/api/v1/public/webhooks', publicWebhooks);
 
 // 2. Global body and cookie parsers
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
 // 3. Mount namespace routes

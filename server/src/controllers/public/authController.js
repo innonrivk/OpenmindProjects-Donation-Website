@@ -211,6 +211,7 @@ export async function getMe(req, res, next) {
       include: {
         transactions: { orderBy: { createdAt: 'desc' }, take: 50 },
         claimedMilestones: { include: { milestone: true } },
+        userTiers: { include: { tier: true } },
       },
     });
 
@@ -246,11 +247,16 @@ export async function getMe(req, res, next) {
     ]);
 
     const monthlyAmountDollars = user.monthlyAmount;
-    const currentTier = tiers.find(t => {
-      const matchesMin = monthlyAmountDollars >= t.minAmount;
-      const matchesMax = t.maxAmount === null || monthlyAmountDollars <= t.maxAmount;
-      return matchesMin && matchesMax;
-    }) || null;
+    
+    // Retrieve all active tiers sorted by tier level descending, retaining assignment metadata
+    const activeTiers = user.userTiers
+      .sort((a, b) => b.tier.tierLevel - a.tier.tierLevel)
+      .map(ut => ({
+        ...ut.tier,
+        assignedBy: ut.assignedBy,
+        userTierId: ut.id,
+      }));
+    const currentTier = activeTiers[0] || null;
 
     const mappedDonationBoxes = mapDonationBoxes(donationBoxes);
 
@@ -264,6 +270,7 @@ export async function getMe(req, res, next) {
         stripeCustomerId: user.stripeCustomerId,
         createdAt: user.createdAt,
         role: user.role,
+        tiers: activeTiers,
       },
       tier: currentTier,
       monthlyAmount: monthlyAmountDollars,

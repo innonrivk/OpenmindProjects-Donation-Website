@@ -22,7 +22,7 @@ export const datalabelsPlugin = {
 
     chart.data.datasets.forEach((dataset, datasetIndex) => {
       const meta = chart.getDatasetMeta(datasetIndex);
-      if (meta.hidden) return;
+      if (dataset.hidden || meta.hidden) return;
 
       meta.data.forEach((element, index) => {
         const value = dataset.data[index];
@@ -58,9 +58,11 @@ export const datalabelsPlugin = {
  * 
  * @param {string[]} labels 
  * @param {number[]} monthlyAmounts 
- * @param {number[]} oneTimeAmounts 
+ * @param {number[]} oneTimeAmounts
+ * @param {boolean} showMonthly - Whether to display the Monthly Donations line.
+ * @param {boolean} showOneTime - Whether to display the One-Time Donations line.
  */
-export const getChartData = (labels, monthlyAmounts, oneTimeAmounts) => ({
+export const getChartData = (labels, monthlyAmounts, oneTimeAmounts, showMonthly = true, showOneTime = true) => ({
   labels,
   datasets: [
     {
@@ -73,9 +75,10 @@ export const getChartData = (labels, monthlyAmounts, oneTimeAmounts) => ({
       pointBackgroundColor: '#4285f4',
       pointBorderColor: '#ffffff',
       pointBorderWidth: 1.5,
-      pointHoverRadius: 7,
-      pointRadius: 4,
+      pointHoverRadius: 6,
+      pointRadius: 0,
       fill: true,
+      hidden: !showMonthly,
     },
     {
       label: 'One-Time Donations',
@@ -87,9 +90,10 @@ export const getChartData = (labels, monthlyAmounts, oneTimeAmounts) => ({
       pointBackgroundColor: '#34a853',
       pointBorderColor: '#ffffff',
       pointBorderWidth: 1.5,
-      pointHoverRadius: 7,
-      pointRadius: 4,
+      pointHoverRadius: 6,
+      pointRadius: 0,
       fill: true,
+      hidden: !showOneTime,
     },
   ],
 });
@@ -104,9 +108,9 @@ export const getChartData = (labels, monthlyAmounts, oneTimeAmounts) => ({
  * @param {number[]} monthlyAmounts - Monthly donation data series.
  * @param {number[]} oneTimeAmounts - One-time donation data series.
  */
-export const getChartOptions = (onDrillDown, monthlyAmounts = [], oneTimeAmounts = []) => {
+export const getChartOptions = (onDrillDown, granularity = 'monthly', monthlyAmounts = [], oneTimeAmounts = []) => {
   const maxVal = Math.max(...monthlyAmounts, ...oneTimeAmounts, 10);
-  const yMax = Math.ceil(maxVal * 1.15);
+  const yMax = Math.ceil(maxVal * 1.05);
 
   return {
     responsive: true,
@@ -118,13 +122,7 @@ export const getChartOptions = (onDrillDown, monthlyAmounts = [], oneTimeAmounts
     },
     plugins: {
       legend: {
-        position: 'top',
-        labels: {
-          font: { family: "'Inter', sans-serif", size: 12, weight: '600' },
-          color: 'var(--color-text-secondary)',
-          boxWidth: 16,
-          padding: 20,
-        },
+        display: false,
       },
       tooltip: {
         backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -181,11 +179,28 @@ export const getChartOptions = (onDrillDown, monthlyAmounts = [], oneTimeAmounts
         let endISO = null;
 
         if (periodLabel.includes('-')) {
-          const [yearStr, monthStr] = periodLabel.split('-');
-          const year = parseInt(yearStr, 10);
-          const month = parseInt(monthStr, 10) - 1;
-          startISO = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0)).toISOString();
-          endISO = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999)).toISOString();
+          const parts = periodLabel.split('-');
+          if (parts.length === 3) {
+            // Weekly/Biweekly format: YYYY-MM-DD (Monday start of period)
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            const start = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+            const end = new Date(start);
+            // Biweekly granularity covers 13 days; Weekly covers 6 days
+            const daysInPeriod = granularity === 'biweekly' ? 13 : 6;
+            end.setUTCDate(start.getUTCDate() + daysInPeriod);
+            end.setUTCHours(23, 59, 59, 999);
+            startISO = start.toISOString();
+            endISO = end.toISOString();
+          } else {
+            // Monthly format: YYYY-MM
+            const [yearStr, monthStr] = parts;
+            const year = parseInt(yearStr, 10);
+            const month = parseInt(monthStr, 10) - 1;
+            startISO = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0)).toISOString();
+            endISO = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999)).toISOString();
+          }
         } else {
           const year = parseInt(periodLabel, 10);
           startISO = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0)).toISOString();

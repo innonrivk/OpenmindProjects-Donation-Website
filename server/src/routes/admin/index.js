@@ -11,6 +11,8 @@ import milestoneRoutes from './milestones.js';
 import transactionRoutes from './transactions.js';
 import receiptSettingsRoutes from './receiptSettings.js';
 import usersRoutes from './users.js';
+import communicationsRoutes from './communications.js';
+import notificationsRoutes from './notifications.js';
 
 const router = Router();
 
@@ -46,5 +48,7 @@ router.use('/milestones', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MA
 router.use('/transactions', requireAdminAuth, requirePermission(PERMISSIONS.CAN_VIEW_TRANSACTIONS), transactionRoutes);
 router.use('/receipt-settings', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_RECEIPTS), receiptSettingsRoutes);
 router.use('/users', requireAdminAuth, usersRoutes);
+router.use('/communications', requireAdminAuth, requirePermission(PERMISSIONS.CAN_MANAGE_COMMUNICATIONS), communicationsRoutes);
+router.use('/notifications', requireAdminAuth, notificationsRoutes);
 
 export default router;

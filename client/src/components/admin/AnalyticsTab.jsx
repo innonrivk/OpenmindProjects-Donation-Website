@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { adminApi } from '../../lib/api.js';
 import { Line } from 'react-chartjs-2';
+import AnalyticsFilters from './AnalyticsFilters.jsx';
 import {
   backgroundPlugin,
   datalabelsPlugin,
@@ -33,21 +34,155 @@ ChartJS.register(
 );
 
 /**
+ * Resolves a filterMode into start/end ISO date strings.
+ */
+function resolveDateRange(mode, start = null, end = null) {
+  const now = new Date();
+  if (mode === 'LAST_3_MONTHS') {
+    const from = new Date(now);
+    from.setMonth(from.getMonth() - 3);
+    return { startISO: from.toISOString(), endISO: now.toISOString() };
+  }
+  if (mode === 'LAST_6_MONTHS') {
+    const from = new Date(now);
+    from.setMonth(from.getMonth() - 6);
+    return { startISO: from.toISOString(), endISO: now.toISOString() };
+  }
+  if (mode === 'LAST_YEAR') {
+    const from = new Date(now);
+    from.setFullYear(from.getFullYear() - 1);
+    return { startISO: from.toISOString(), endISO: now.toISOString() };
+  }
+  if (mode === 'LAST_10_YEARS') {
+    const from = new Date(now);
+    from.setFullYear(from.getFullYear() - 10);
+    return { startISO: from.toISOString(), endISO: now.toISOString() };
+  }
+  if (mode === 'CUSTOM' && start && end) {
+    return { startISO: new Date(start).toISOString(), endISO: new Date(end).toISOString() };
+  }
+  return { startISO: null, endISO: null };
+}
+
+/**
  * AnalyticsTab Component — Renders historical donation trends in a Chart.js Line chart.
  *
  * Why? Provides administrators with visual insight into recurring vs one-time donation
- * trajectories. Supports toggling views, exporting Excel sheets, and downloading the chart as a photo.
+ * trajectories. Supports dynamic filters, custom dates, and download functions.
  *
  * @param {object} props - Component props.
  * @param {function} props.onDrillDown - Callback triggered on data point clicks.
  */
 export default function AnalyticsTab({ onDrillDown }) {
-  const [view, setView] = useState('MONTHLY'); // 'MONTHLY' | 'YEARLY'
+  const [filterMode, setFilterMode] = useState('ALL');
+  const [donationType, setDonationType] = useState('ALL');
+  const [tierId, setTierId] = useState('ALL');
 
-  const { data: analytics = { monthly: [], yearly: [] }, isLoading } = useQuery({
-    queryKey: ['admin-analytics-donations'],
+  const [inputStartDate, setInputStartDate] = useState('');
+  const [inputEndDate, setInputEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState(null);
+  const [appliedEndDate, setAppliedEndDate] = useState(null);
+
+  const [showMonthly, setShowMonthly] = useState(true);
+  const [showOneTime, setShowOneTime] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const chartRef = useRef(null);
+
+  // Sync line visibility with donation type filter selection
+  useEffect(() => {
+    if (donationType === 'MONTHLY') {
+      setShowMonthly(true);
+      setShowOneTime(false);
+    } else if (donationType === 'ONE_TIME') {
+      setShowMonthly(false);
+      setShowOneTime(true);
+    } else {
+      setShowMonthly(true);
+      setShowOneTime(true);
+    }
+  }, [donationType]);
+
+  const handleModeChange = (mode) => {
+    setFilterMode(mode);
+    if (mode !== 'CUSTOM') {
+      const { startISO, endISO } = resolveDateRange(mode);
+      setAppliedStartDate(startISO);
+      setAppliedEndDate(endISO);
+      setInputStartDate('');
+      setInputEndDate('');
+    }
+  };
+
+  const handleApplyCustom = () => {
+    const { startISO, endISO } = resolveDateRange('CUSTOM', inputStartDate, inputEndDate);
+    setAppliedStartDate(startISO);
+    setAppliedEndDate(endISO);
+  };
+
+  const handleDownloadChart = async () => {
+    try {
+      if (!chartRef.current) {
+        alert('Chart is not ready. Please try again.');
+        return;
+      }
+      setIsDownloading(true);
+
+      const dataUrl = chartRef.current.toBase64Image();
+      const arr = dataUrl.split(',');
+      const mime = arr[0].match(/:(.*?);/)[1];
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], { type: mime });
+      
+      const granularityLabel = (analytics.granularity || 'monthly').toLowerCase();
+      const filename = `donation_chart_${granularityLabel}.png`;
+
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: 'PNG Image',
+              accept: { 'image/png': ['.png'] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+        } catch (saveError) {
+          if (saveError.name !== 'AbortError') throw saveError;
+        }
+      } else {
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+      }
+    } catch (error) {
+      console.error('Error downloading chart:', error);
+      alert('Failed to download chart image. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const { data: analytics = { series: [], granularity: 'monthly' }, isLoading } = useQuery({
+    queryKey: ['admin-analytics-donations', appliedStartDate, appliedEndDate, donationType, tierId],
     queryFn: async () => {
-      const { data } = await adminApi.get('/transactions/analytics/donations');
+      const params = new URLSearchParams();
+      if (appliedStartDate) params.set('start_date', appliedStartDate);
+      if (appliedEndDate) params.set('end_date', appliedEndDate);
+      if (donationType !== 'ALL') params.set('donation_type', donationType);
+      if (tierId !== 'ALL') params.set('tierId', tierId);
+      const { data } = await adminApi.get(`/transactions/analytics/donations?${params.toString()}`);
       return data;
     },
   });
@@ -56,13 +191,27 @@ export default function AnalyticsTab({ onDrillDown }) {
     return <div className="admin-loading">Loading donation analytics...</div>;
   }
 
-  const activeSeries = view === 'MONTHLY' ? analytics.monthly : analytics.yearly;
+  const activeSeries = analytics.series || [];
   const labels = activeSeries.map((item) => item.period);
   const monthlyAmounts = activeSeries.map((item) => item.monthly);
   const oneTimeAmounts = activeSeries.map((item) => item.oneTime);
 
-  const chartData = getChartData(labels, monthlyAmounts, oneTimeAmounts);
-  const options = getChartOptions(onDrillDown, monthlyAmounts, oneTimeAmounts);
+  const chartData = getChartData(labels, monthlyAmounts, oneTimeAmounts, showMonthly, showOneTime);
+
+  const handleChartDrillDown = (drillData) => {
+    onDrillDown({
+      ...drillData,
+      donationType,
+      tierId
+    });
+  };
+
+  const options = getChartOptions(
+    handleChartDrillDown,
+    analytics.granularity || 'monthly',
+    showMonthly ? monthlyAmounts : [],
+    showOneTime ? oneTimeAmounts : []
+  );
 
   return (
     <motion.div
@@ -76,61 +225,109 @@ export default function AnalyticsTab({ onDrillDown }) {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '20px',
+          marginBottom: '12px',
           flexWrap: 'wrap',
           gap: '12px',
         }}
       >
-        <h3 style={{ margin: 0, fontSize: 'var(--font-size-lg)' }}>Donation Trends</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* View Toggles */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '4px',
-              backgroundColor: 'var(--color-bg-tertiary)',
-              border: '1px solid var(--color-border)',
-              padding: '3px',
-              borderRadius: 'var(--radius-md)',
-            }}
-          >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h3 style={{ margin: 0, fontSize: 'var(--font-size-lg)' }}>Donation Trends</h3>
+          {/* Series visibility toggles */}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <button
               type="button"
-              onClick={() => setView('MONTHLY')}
+              onClick={() => setShowMonthly((v) => !v)}
+              title={showMonthly ? 'Hide monthly donations line' : 'Show monthly donations line'}
               style={{
-                border: 'none',
-                background: view === 'MONTHLY' ? 'var(--color-accent-gradient)' : 'transparent',
-                color: view === 'MONTHLY' ? 'var(--color-text-on-accent)' : 'var(--color-text-secondary)',
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: 'var(--font-size-xs)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                border: `1.5px solid #4285f4`,
+                background: showMonthly ? '#4285f4' : 'transparent',
+                color: showMonthly ? '#fff' : '#4285f4',
+                fontSize: '11px',
                 fontWeight: 600,
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
+                opacity: showMonthly ? 1 : 0.55,
+                transition: 'all 0.18s ease',
               }}
             >
-              Last 12 Months
+              <span style={{
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: showMonthly ? '#fff' : '#4285f4',
+                flexShrink: 0,
+              }} />
+              Monthly
             </button>
             <button
               type="button"
-              onClick={() => setView('YEARLY')}
+              onClick={() => setShowOneTime((v) => !v)}
+              title={showOneTime ? 'Hide one-time donations line' : 'Show one-time donations line'}
               style={{
-                border: 'none',
-                background: view === 'YEARLY' ? 'var(--color-accent-gradient)' : 'transparent',
-                color: view === 'YEARLY' ? 'var(--color-text-on-accent)' : 'var(--color-text-secondary)',
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: 'var(--font-size-xs)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                border: `1.5px solid #34a853`,
+                background: showOneTime ? '#34a853' : 'transparent',
+                color: showOneTime ? '#fff' : '#34a853',
+                fontSize: '11px',
                 fontWeight: 600,
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
+                opacity: showOneTime ? 1 : 0.55,
+                transition: 'all 0.18s ease',
               }}
             >
-              Last 10 Years
+              <span style={{
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: showOneTime ? '#fff' : '#34a853',
+                flexShrink: 0,
+              }} />
+              One-Time
             </button>
           </div>
         </div>
+        <div>
+          {/* Download Button */}
+          <button
+            type="button"
+            className="cms-btn cms-btn--secondary"
+            onClick={handleDownloadChart}
+            disabled={isDownloading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: 'var(--font-size-xs)'
+            }}
+          >
+            {isDownloading ? 'Downloading...' : '🖼️ Download Chart'}
+          </button>
+        </div>
       </div>
+
+      <AnalyticsFilters
+        filterMode={filterMode}
+        donationType={donationType}
+        inputStartDate={inputStartDate}
+        inputEndDate={inputEndDate}
+        onModeChange={handleModeChange}
+        onDonationTypeChange={setDonationType}
+        onStartChange={setInputStartDate}
+        onEndChange={setInputEndDate}
+        onApply={handleApplyCustom}
+        tierId={tierId}
+        onTierChange={setTierId}
+      />
 
       <div
         className="glass"
@@ -141,8 +338,9 @@ export default function AnalyticsTab({ onDrillDown }) {
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <div style={{ position: 'relative', height: '400px', width: '100%' }}>
+        <div style={{ position: 'relative', height: '520px', width: '100%' }}>
           <Line
+            ref={chartRef}
             data={chartData}
             options={options}
             plugins={[backgroundPlugin, datalabelsPlugin]}

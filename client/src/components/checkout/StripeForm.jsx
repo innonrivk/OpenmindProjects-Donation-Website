@@ -234,6 +234,7 @@ export default function StripeForm({ amount, onClose, isRecurring = true, box = 
         country: formData.country,
         paymentMethodId: paymentMethodId,
         amount: amount,
+        donationBoxId: box ? box.id : undefined,
       };
 
       let result;

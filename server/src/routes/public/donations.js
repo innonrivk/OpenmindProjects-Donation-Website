@@ -3,6 +3,7 @@ import prisma from '../../lib/prismaPublic.js';
 import { z } from 'zod';
 import { upsertStripeCustomer, createStripeSubscription, listActiveSubscriptions, stripe, isMockMode } from '../../services/stripe.js';
 import { createOneTimeDonation } from '../../controllers/public/oneTimeController.js';
+import { recalculateUserTiers } from '../../services/tierAssignmentService.js';
 
 const router = Router();
 
@@ -15,6 +16,7 @@ const SubscribeSchema = z.object({
   country:         z.string().min(2, 'Please select a country').max(60),
   paymentMethodId: z.string().startsWith('pm_', 'Invalid payment method'),
   amount:          z.number().int().min(1, 'Minimum donation is $1'), // dollars
+  donationBoxId:   z.number().int().positive().optional().nullable(),
 });
 
 // POST /api/v1/public/donations/subscribe
@@ -37,7 +39,7 @@ router.post('/subscribe', async (req, res, next) => {
       });
     }
 
-    const { email, firstName, lastName, country, paymentMethodId, amount } = parseResult.data;
+    const { email, firstName, lastName, country, paymentMethodId, amount, donationBoxId } = parseResult.data;
     const amountCents = amount * 100;
     console.log(`├── 🔎 [BACKEND] Validation succeeded for: \x1b[36m${email}\x1b[0m (Amount: $${amount}/mo)`);
 
@@ -117,6 +119,31 @@ router.post('/subscribe', async (req, res, next) => {
           },
         });
 
+        if (donationBoxId) {
+          const dbBox = await tx.donationBox.findUnique({
+            where: { id: donationBoxId },
+            select: { tierId: true, tier: { select: { isAutoAppliedBySum: true } } },
+          });
+          if (dbBox && dbBox.tierId && !dbBox.tier?.isAutoAppliedBySum) {
+            await tx.userTier.upsert({
+              where: {
+                userId_tierId: {
+                  userId: user.id,
+                  tierId: dbBox.tierId,
+                },
+              },
+              create: {
+                userId: user.id,
+                tierId: dbBox.tierId,
+                assignedBy: 'MANUAL',
+              },
+              update: {
+                assignedBy: 'MANUAL',
+              },
+            });
+          }
+        }
+
         // If subscription is immediately active, record the transaction
         if (subscription.status === 'active') {
           const paymentIntent = subscription.latest_invoice?.payment_intent;
@@ -131,6 +158,9 @@ router.post('/subscribe', async (req, res, next) => {
             },
           });
         }
+
+        // Recalculate auto-assigned tiers immediately in the transaction context
+        await recalculateUserTiers(user.id, tx);
       });
       console.log("├── 💾 [BACKEND] Database write successful.");
     } catch (dbError) {

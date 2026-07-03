@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { PERMISSIONS, ROLE_PERMISSIONS } from '../../config/permissions';
+import NotificationBell from './NotificationBell';
 import './AdminSidebar.css';
 
 /**
@@ -23,6 +24,7 @@ export default function AdminSidebar() {
     { label: 'Milestones', path: '/admin/dashboard/milestones', icon: '🏆', permission: PERMISSIONS.CAN_MANAGE_DONATIONS },
     { label: 'Transactions', path: '/admin/dashboard/transactions', icon: '📊', permission: PERMISSIONS.CAN_VIEW_TRANSACTIONS },
     { label: 'Receipt Settings', path: '/admin/dashboard/receipts', icon: '📝', permission: PERMISSIONS.CAN_MANAGE_RECEIPTS },
+    { label: 'Communications', path: '/admin/dashboard/communications', icon: '📨', permission: PERMISSIONS.CAN_MANAGE_COMMUNICATIONS },
     { label: 'Admin Settings', path: '/admin/dashboard/settings', icon: '⚙️', permission: PERMISSIONS.CAN_MANAGE_SETTINGS },
     { label: 'User Management', path: '/admin/dashboard/users', icon: '👥', permission: PERMISSIONS.CAN_MANAGE_USERS },
   ];
@@ -31,11 +33,12 @@ export default function AdminSidebar() {
 
   return (
     <aside className="admin-sidebar">
-      <div className="admin-sidebar__brand">
+      <div className="admin-sidebar__brand" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Link to="/" className="brand-link">
           <img src="/omp-logo.png" alt="OMP Logo" className="brand-logo" />
           <span className="brand-text">OMP Admin</span>
         </Link>
+        <NotificationBell />
       </div>
 
       <div className="admin-sidebar__profile">

@@ -53,6 +53,8 @@ model User {
   transactions       Transaction[]
   votes              Vote[]
   claimedMilestones  ClaimedMilestone[]
+  userTiers               UserTier[]
+  internalNotifications   InternalNotification[]
 
   @@map("users")
 }
@@ -89,13 +91,15 @@ model ReceiptSettings {
 }
 
 model Tier {
-  id             Int           @id @default(autoincrement())
-  tierLevel      Int           @map("tier_level")
-  name           String
-  minAmount      Int           @map("min_amount") // in dollars
-  maxAmount      Int?          @map("max_amount") // null = unlimited
-  perks          Json          @default("[]")
-  donationBoxes  DonationBox[]
+  id                  Int           @id @default(autoincrement())
+  tierLevel           Int           @map("tier_level")
+  name                String
+  minAmount           Int           @map("min_amount") // in dollars
+  maxAmount           Int?          @map("max_amount") // null = unlimited
+  isAutoAppliedBySum  Boolean       @default(false) @map("is_auto_applied_by_sum")
+  perks               Json          @default("[]")
+  donationBoxes       DonationBox[]
+  userTiers           UserTier[]
 
   @@map("tiers")
 }
@@ -254,5 +258,87 @@ model AllowedAdminEmail {
 
   @@map("allowed_admin_emails")
 }
+model UserTier {
+  id         Int      @id @default(autoincrement())
+  userId     String   @map("user_id")
+  tierId     Int      @map("tier_id")
+  assignedBy String   @default("MANUAL") // 'MANUAL' or 'AUTO_SUM'
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier       Tier     @relation(fields: [tierId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, tierId])
+  @@index([userId])
+  @@index([tierId])
+  @@map("user_tiers")
+}
 
+model EmailTemplate {
+  id           Int                 @id @default(autoincrement())
+  name         String              @unique
+  subject      String
+  bodyHtml     String              @map("body_html")
+  pdfConfig    Json?               @map("pdf_config")
+  isArchived   Boolean             @default(false) @map("is_archived")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+  triggers     AutomationTrigger[]
+  dispatchLogs DispatchLog[]
+
+  @@map("email_templates")
+}
+
+model AutomationTrigger {
+  id              Int                   @id @default(autoincrement())
+  eventName       String                @map("event_name")
+  tierId          Int?                  @map("tier_id")
+  emailTemplateId Int                   @map("email_template_id")
+  isActive        Boolean               @default(true) @map("is_active")
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  template         EmailTemplate         @relation(fields: [emailTemplateId], references: [id])
+  adminAssignments AdminRoleAssignment[]
+
+  @@unique([eventName, tierId])
+  @@map("automation_triggers")
+}
+
+model AdminRoleAssignment {
+  id                  Int               @id @default(autoincrement())
+  automationTriggerId Int               @map("automation_trigger_id")
+  role                UserRole
+
+  trigger AutomationTrigger @relation(fields: [automationTriggerId], references: [id], onDelete: Cascade)
+
+  @@unique([automationTriggerId, role])
+  @@map("admin_role_assignments")
+}
+
+model DispatchLog {
+  id              Int           @id @default(autoincrement())
+  emailTemplateId Int           @map("email_template_id")
+  triggeredBy     String        @map("triggered_by")
+  recipientCount  Int           @default(0) @map("recipient_count")
+  status          String        @default("QUEUED")
+  errorMessage    String?       @map("error_message")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  template EmailTemplate @relation(fields: [emailTemplateId], references: [id])
+
+  @@index([emailTemplateId])
+  @@map("dispatch_logs")
+}
+
+model InternalNotification {
+  id        Int      @id @default(autoincrement())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("internal_notifications")
+}

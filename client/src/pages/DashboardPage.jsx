@@ -6,6 +6,7 @@ import UserSummaryCard from '../components/dashboard/UserSummaryCard';
 import LifetimeMilestonesCard from '../components/dashboard/LifetimeMilestonesCard';
 import DashboardHistorySection from '../components/dashboard/DashboardHistorySection';
 import DashboardModals from '../components/dashboard/DashboardModals';
+import UserTiersCard from '../components/dashboard/UserTiersCard';
 import { useDonationState } from '../hooks/useDonationState';
 import * as api from '../services/api';
 import { formatContentInline } from '../utils/formatContent';
@@ -188,9 +189,9 @@ export default function DashboardPage() {
             <section className="dash-card dash-card--update animate-fade-in-up animate-delay-1">
               <CustomAmountCard
                 onDonate={handleStartDonation}
-                title="Change total donation amount"
-                desc="The amount you choose will become your new monthly total."
-                buttonLabel={updateLoading ? "Updating..." : "Change Total Amount"}
+                title="Change monthly donation"
+                desc="The amount you choose will set your new OMP monthly donation portion (excluding Add-ons)."
+                buttonLabel={updateLoading ? "Updating..." : "Change Donation Amount"}
                 presetAmounts={[10, 85, 170]}
               >
                 {updateMsg.text && (
@@ -231,6 +232,10 @@ export default function DashboardPage() {
                 </div>
               </CustomAmountCard>
             </section>
+
+            {user.tiers?.length > 0 && (
+              <UserTiersCard tiers={user.tiers} onTierCancelled={refreshUser} />
+            )}
           </div>
 
           <div className="dashboard-col-right">

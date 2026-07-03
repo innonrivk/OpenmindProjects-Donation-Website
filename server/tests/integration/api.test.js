@@ -122,12 +122,22 @@ test('Integration: Admin Auth Flow & Protected Routing & CORS checks', async (t)
     const data = await res.json();
     assert.ok(data.monthly);
     assert.ok(data.yearly);
+    assert.ok(data.weekly3m);
+    assert.ok(data.biweekly6m);
     assert.strictEqual(data.monthly.length, 12);
     assert.strictEqual(data.yearly.length, 10);
+    assert.ok(data.weekly3m.length > 0);
+    assert.ok(data.biweekly6m.length > 0);
     
     assert.ok(data.monthly[0].period);
     assert.ok('monthly' in data.monthly[0]);
     assert.ok('oneTime' in data.monthly[0]);
+    assert.ok(data.weekly3m[0].period);
+    assert.ok('monthly' in data.weekly3m[0]);
+    assert.ok('oneTime' in data.weekly3m[0]);
+    assert.ok(data.biweekly6m[0].period);
+    assert.ok('monthly' in data.biweekly6m[0]);
+    assert.ok('oneTime' in data.biweekly6m[0]);
   });
 
   await t.test('GET /admin/transactions/analytics/donations/download succeeds with valid Bearer token', async () => {
@@ -143,6 +153,52 @@ test('Integration: Admin Auth Flow & Protected Routing & CORS checks', async (t)
     assert.ok(res.headers.get('content-type')?.includes('image/svg+xml'));
     const contentDisposition = res.headers.get('content-disposition');
     assert.ok(contentDisposition && contentDisposition.includes('attachment; filename="donation_chart_'));
+  });
+
+  await t.test('GET /admin/transactions/analytics/donations/download?view=MONTHLY_3 succeeds', async () => {
+    assert.ok(adminToken, 'Pre-condition failed: Admin token was not generated.');
+    const res = await fetch(`${BASE_URL}/admin/transactions/analytics/donations/download?view=MONTHLY_3`, {
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        Origin: ADMIN_URL,
+      },
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.headers.get('content-type')?.includes('image/svg+xml'));
+    const contentDisposition = res.headers.get('content-disposition');
+    assert.ok(contentDisposition && contentDisposition.includes('attachment; filename="donation_chart_monthly_3'));
+  });
+
+  await t.test('GET /admin/transactions/analytics/donations/download?view=MONTHLY_6 succeeds', async () => {
+    assert.ok(adminToken, 'Pre-condition failed: Admin token was not generated.');
+    const res = await fetch(`${BASE_URL}/admin/transactions/analytics/donations/download?view=MONTHLY_6`, {
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        Origin: ADMIN_URL,
+      },
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.headers.get('content-type')?.includes('image/svg+xml'));
+    const contentDisposition = res.headers.get('content-disposition');
+    assert.ok(contentDisposition && contentDisposition.includes('attachment; filename="donation_chart_monthly_6'));
+  });
+
+  await t.test('GET /admin/transactions/export succeeds and returns excel sheet', async () => {
+    assert.ok(adminToken, 'Pre-condition failed: Admin token was not generated.');
+    const res = await fetch(`${BASE_URL}/admin/transactions/export?donation_type=MONTHLY`, {
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        Origin: ADMIN_URL,
+      },
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.headers.get('content-type')?.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+    const contentDisposition = res.headers.get('content-disposition');
+    assert.ok(contentDisposition && contentDisposition.includes('attachment; filename="Transactions_Monthly_All-Tiers_'));
+    assert.ok(res.headers.get('access-control-expose-headers')?.includes('X-Export-Limit-Hit'));
   });
 
   await t.test('POST /admin/auth/logout clears the refresh cookie', async () => {
