@@ -40,7 +40,31 @@ export async function triggerAutomation(eventName, context, tierId = null) {
       // Resolve recipients: donor first, then assigned admins
       const recipients = [];
       if (context.donorEmail) {
-        recipients.push({ email: context.donorEmail, userId: 'donor' });
+        const donorUser = await prisma.user.findUnique({
+          where: { email: context.donorEmail },
+          include: {
+            transactions: {
+              where: { status: 'SUCCEEDED' },
+              take: 1,
+            },
+          },
+        });
+
+        const isDonor = donorUser && donorUser.role === 'DONOR';
+        const hasDonated = donorUser && donorUser.transactions.length > 0;
+
+        if (!isDonor || hasDonated) {
+          recipients.push({ email: context.donorEmail, userId: 'donor' });
+        } else {
+          process.stdout.write(
+            JSON.stringify({
+              level: 'INFO',
+              ts: new Date().toISOString(),
+              event: 'AUTOMATION_DONOR_SKIPPED_NO_DONATIONS',
+              email: context.donorEmail,
+            }) + '\n'
+          );
+        }
       }
 
       // Notify admin roles assigned to this trigger

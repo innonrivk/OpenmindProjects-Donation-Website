@@ -151,6 +151,16 @@ export async function dispatchBatch(req, res, next) {
       userWhere.OR = conditions;
     }
 
+    // Exclude DONOR users with 0 successful donations (unique users)
+    userWhere.AND = [
+      {
+        OR: [
+          { role: { not: 'DONOR' } },
+          { transactions: { some: { status: 'SUCCEEDED' } } },
+        ],
+      },
+    ];
+
     const recipients = await prisma.user.findMany({
       where: userWhere,
       select: { id: true, email: true, firstName: true, lastName: true },

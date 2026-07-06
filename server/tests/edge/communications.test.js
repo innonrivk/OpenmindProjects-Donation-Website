@@ -1,6 +1,13 @@
 import '../../src/lib/env.js';
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert';
+import { transporter } from '../../src/services/email.js';
+
+after(async () => {
+  if (transporter && typeof transporter.close === 'function') {
+    transporter.close();
+  }
+});
 
 const TEST_PORT = process.env.TEST_PORT || '3002';
 const BASE_URL = `http://localhost:${TEST_PORT}/api/v1`;
@@ -329,6 +336,162 @@ test('Integration & Edge: Communications and Notifications Flow', async (t) => {
       assert.strictEqual(delRes.status, 200);
       const delData = await delRes.json();
       assert.strictEqual(delData.success, true);
+    });
+
+    // 13. Exclude 0-Donation Users from Emails Test
+    await t.test('Skip manual batch and automated dispatches to users with 0 donations', async (subT) => {
+      const nonDonorEmail = `non-donor-${Date.now()}@omp.org`;
+      const activeDonorEmail = `active-donor-${Date.now()}@omp.org`;
+
+      // 1. Setup users
+      // Non-donor
+      const signup1 = await fetch(`${BASE_URL}/public/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Non',
+          lastName: 'Donor',
+          email: nonDonorEmail,
+          password: 'Password123!',
+        }),
+      });
+      const user1 = await signup1.json();
+
+      // Active donor
+      const signup2 = await fetch(`${BASE_URL}/public/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Active',
+          lastName: 'Donor',
+          email: activeDonorEmail,
+          password: 'Password123!',
+        }),
+      });
+      const user2 = await signup2.json();
+
+      // Add a successful transaction for active donor
+      await prisma.transaction.create({
+        data: {
+          userId: user2.user.id,
+          amount: 1500,
+          status: 'SUCCEEDED',
+        },
+      });
+
+      // 2. Test manual batch exclusion
+      const batchTmplRes = await fetch(`${BASE_URL}/admin/communications/templates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          name: `Batch Filter Test ${Date.now()}`,
+          subject: 'Batch subject',
+          bodyHtml: '<p>Batch body</p>',
+        }),
+      });
+      const batchTmpl = await batchTmplRes.json();
+
+      const dispatchRes = await fetch(`${BASE_URL}/admin/communications/dispatch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          templateId: batchTmpl.id,
+          targetRoles: ['DONOR'],
+        }),
+      });
+      assert.strictEqual(dispatchRes.status, 200);
+      const dispatchData = await dispatchRes.json();
+      
+      // Let's verify the dispatch log was created and did not include the non-donor in the recipients
+      const logDetailsRes = await fetch(`${BASE_URL}/admin/communications/dispatch-logs/${dispatchData.logId}`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const logDetails = await logDetailsRes.json();
+      
+      // The total count of DONORs in the database should have increased by 2,
+      // but only those with successful transactions should be counted.
+      // We know activeDonorEmail is included, and nonDonorEmail must be excluded.
+      // Let's query users having role DONOR and transactions count > 0 to confirm count match.
+      const expectedRecipients = await prisma.user.count({
+        where: {
+          role: 'DONOR',
+          isActive: true,
+          transactions: { some: { status: 'SUCCEEDED' } },
+        },
+      });
+      assert.strictEqual(logDetails.recipientCount, expectedRecipients);
+
+      // 3. Test automation trigger skip
+      const { triggerAutomation } = await import('../../src/services/automationService.js');
+      
+      // Setup a template and trigger for MILESTONE_CLAIMED
+      const autoTmplRes = await fetch(`${BASE_URL}/admin/communications/templates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          name: `Auto Filter Test ${Date.now()}`,
+          subject: 'Auto subject',
+          bodyHtml: '<p>Auto body</p>',
+        }),
+      });
+      const autoTmpl = await autoTmplRes.json();
+
+      const autoTrigRes = await fetch(`${BASE_URL}/admin/communications/triggers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          eventName: 'MILESTONE_CLAIMED',
+          emailTemplateId: autoTmpl.id,
+        }),
+      });
+      const autoTrig = await autoTrigRes.json();
+
+      // Trigger automation for non-donor
+      // Since it skips, no dispatch logs should be queued targeting the template for them
+      const initialLogs = await prisma.dispatchLog.count({
+        where: { emailTemplateId: autoTmpl.id },
+      });
+      
+      await triggerAutomation('MILESTONE_CLAIMED', {
+        donorName: 'Non Donor',
+        donorEmail: nonDonorEmail,
+      });
+
+      const logsAfterNonDonor = await prisma.dispatchLog.count({
+        where: { emailTemplateId: autoTmpl.id },
+      });
+      assert.strictEqual(logsAfterNonDonor, initialLogs); // Skipped!
+
+      // Trigger automation for active donor
+      await triggerAutomation('MILESTONE_CLAIMED', {
+        donorName: 'Active Donor',
+        donorEmail: activeDonorEmail,
+      });
+
+      const logsAfterActiveDonor = await prisma.dispatchLog.count({
+        where: { emailTemplateId: autoTmpl.id },
+      });
+      assert.strictEqual(logsAfterActiveDonor, initialLogs + 1); // Dispatched!
+
+      // Cleanup
+      await prisma.user.delete({ where: { id: user1.user.id } });
+      await prisma.transaction.deleteMany({ where: { userId: user2.user.id } });
+      await prisma.user.delete({ where: { id: user2.user.id } });
+      await prisma.automationTrigger.delete({ where: { id: autoTrig.id } });
+      await prisma.emailTemplate.delete({ where: { id: autoTmpl.id } });
+      await prisma.emailTemplate.delete({ where: { id: batchTmpl.id } });
     });
 
     await prisma.$disconnect();

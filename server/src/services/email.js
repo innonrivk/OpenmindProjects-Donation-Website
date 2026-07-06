@@ -29,7 +29,7 @@ if (!smtpHost || !smtpPort || !smtpUser) {
  * Why pooling? Connection pooling keeps SMTP connections alive, preventing
  * the high overhead of establishing a new SSL/TLS handshake per email.
  */
-const transporter = nodemailer.createTransport({
+export const transporter = nodemailer.createTransport({
   host: smtpHost,
   port: parseInt(smtpPort, 10) || 465,
   secure: process.env.SMTP_SECURE === 'true',

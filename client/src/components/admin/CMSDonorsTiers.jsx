@@ -98,6 +98,29 @@ export default function CMSDonorsTiers() {
     }
   };
 
+  const handleDeleteDonor = (donor) => {
+    if (window.confirm(`WARNING: Are you sure you want to permanently delete donor "${donor.firstName} ${donor.lastName}" (${donor.email})? This will instantly erase their entire history including all payments, votes, milestones, and notifications.`)) {
+      deleteDonorMutation.mutate(donor.id);
+    }
+  };
+
+  const deleteDonorMutation = useMutation({
+    mutationFn: async (id) => {
+      return adminApi.delete(`/users/donors/${id}`);
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-donors'] });
+      setSuccessMessage(res.data.message || 'Donor deleted permanently.');
+      setApiError('');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    },
+    onError: (err) => {
+      setApiError(err.response?.data?.message || err.message || 'Failed to delete donor.');
+      setSuccessMessage('');
+      setTimeout(() => setApiError(''), 3000);
+    },
+  });
+
   if (donorsLoading || tiersLoading) {
     return <div className="admin-loading" style={{ padding: '20px', textAlign: 'center' }}>Loading donors and tiers...</div>;
   }
@@ -136,6 +159,7 @@ export default function CMSDonorsTiers() {
               <th style={{ padding: '12px 15px', color: 'var(--color-text-primary)' }}>Sub Amount</th>
               <th style={{ padding: '12px 15px', color: 'var(--color-text-primary)' }}>Assigned Tiers</th>
               <th style={{ padding: '12px 15px', color: 'var(--color-text-primary)' }}>Assign New Tier</th>
+              <th style={{ padding: '12px 15px', color: 'var(--color-text-primary)' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -145,7 +169,28 @@ export default function CMSDonorsTiers() {
               return (
                 <tr key={donor.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                   <td style={{ padding: '12px 15px', fontWeight: '500', color: 'var(--color-text-primary)' }}>
-                    {donor.firstName} {donor.lastName}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>{donor.firstName} {donor.lastName}</span>
+                      {(!donor.transactions || donor.transactions.length === 0) && (
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '0.7rem',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            background: 'rgba(244, 180, 0, 0.1)',
+                            color: '#b06000',
+                            border: '1px solid rgba(244, 180, 0, 0.2)',
+                          }}
+                          title="This user has registered but has 0 successful donations. They are classified as a unique non-donor to conserve email resources."
+                        >
+                          Unique
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '12px 15px', color: 'var(--color-text-primary)' }}>{donor.email}</td>
                   <td style={{ padding: '12px 15px', color: 'var(--color-text-primary)' }}>
@@ -246,12 +291,27 @@ export default function CMSDonorsTiers() {
                       ⚡ Subscription tiers (Regular, Shareholder, Patron) are assigned automatically by the system. Assign standalone override tiers (like VIP Patron) here.
                     </p>
                   </td>
+                  <td style={{ padding: '12px 15px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDonor(donor)}
+                      className="cms-btn cms-btn--danger"
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '0.85rem',
+                        borderRadius: '4px',
+                      }}
+                      disabled={deleteDonorMutation.isPending}
+                    >
+                      {deleteDonorMutation.isPending && deleteDonorMutation.variables === donor.id ? 'Deleting...' : 'Delete Donor'}
+                    </button>
+                  </td>
                 </tr>
               );
             })}
             {donors.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                <td colSpan={6} style={{ padding: '30px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
                   No donor records found.
                 </td>
               </tr>

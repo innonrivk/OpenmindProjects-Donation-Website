@@ -186,4 +186,6 @@ test('requireAuth (donor) middleware tests', async (t) => {
       email: 'donor@omp.org',
     });
   });
+  
+  await prisma.$disconnect();
 });

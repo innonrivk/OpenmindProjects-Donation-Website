@@ -3,9 +3,13 @@ import { test, after } from 'node:test';
 import assert from 'node:assert';
 import jwt from 'jsonwebtoken';
 import prisma from '../../src/lib/prisma.js';
+import { transporter } from '../../src/services/email.js';
 
 after(async () => {
   await prisma.$disconnect();
+  if (transporter && typeof transporter.close === 'function') {
+    transporter.close();
+  }
 });
 
 const TEST_PORT = process.env.TEST_PORT || '3002';
@@ -225,6 +229,76 @@ test('Integration: RBAC Permission Matrix', async (t) => {
     // Cleanup after test run
     await prisma.allowedAdminEmail.deleteMany({ where: { email: inviteEmail } });
     await prisma.user.deleteMany({ where: { email: inviteEmail } });
+  });
+
+  // Permanent Donor Deletion Check
+  await t.test('Integration: Permanent Donor Deletion flow', async (subT) => {
+    const donorEmail = 'test-deletable-donor@omp.org';
+    let donorId = null;
+
+    await subT.test('1. Setup: Create a new donor user', async () => {
+      const signupRes = await fetch(`${BASE_URL}/public/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Deletable',
+          lastName: 'Donor',
+          email: donorEmail,
+          password: 'Password123!',
+        }),
+      });
+      assert.strictEqual(signupRes.status, 201);
+      const data = await signupRes.json();
+      donorId = data.user.id;
+    });
+
+    await subT.test('2. Setup: Add a mock transaction and vote for the donor', async () => {
+      // Create mock transaction
+      await prisma.transaction.create({
+        data: {
+          userId: donorId,
+          amount: 5000,
+          status: 'SUCCEEDED',
+        },
+      });
+
+      // Find a project and piggybank
+      const project = await prisma.projectDetail.findFirst();
+      const piggyBank = await prisma.piggyBank.findFirst();
+      if (project && piggyBank) {
+        await prisma.vote.create({
+          data: {
+            userId: donorId,
+            projectId: project.id,
+            piggyBankId: piggyBank.id,
+            seedCount: 5,
+          },
+        });
+      }
+    });
+
+    await subT.test('3. DELETE /admin/users/donors/:id succeeds', async () => {
+      const res = await fetch(`${BASE_URL}/admin/users/donors/${donorId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${sysAdminToken}` },
+      });
+      assert.strictEqual(res.status, 200);
+      const data = await res.json();
+      assert.strictEqual(data.status, 'SUCCESS');
+    });
+
+    await subT.test('4. Verify user and all cascading relations are deleted', async () => {
+      const user = await prisma.user.findUnique({ where: { id: donorId } });
+      assert.ok(!user);
+
+      const transactions = await prisma.transaction.findMany({ where: { userId: donorId } });
+      assert.strictEqual(transactions.length, 0);
+
+      const votes = await prisma.vote.findMany({ where: { userId: donorId } });
+      assert.strictEqual(votes.length, 0);
+    });
+
+    await prisma.$disconnect();
   });
 });
 

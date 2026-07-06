@@ -114,5 +114,7 @@ test('RBAC Session Invalidation: tokenVersion mismatch', async (t) => {
     assert.strictEqual(res.body.error, 'invalid_token');
     assert.strictEqual(res.body.message.includes('Session invalidated'), true);
     assert.strictEqual(nextCalled, false);
+    await prisma.$disconnect();
   });
 });
+

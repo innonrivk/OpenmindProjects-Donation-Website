@@ -315,6 +315,11 @@ export async function listDonors(req, res, next) {
               tier: true,
             },
           },
+          transactions: {
+            where: { status: 'SUCCEEDED' },
+            select: { id: true },
+            take: 1,
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -473,4 +478,46 @@ export async function removeTierFromUser(req, res, next) {
     next(error);
   }
 }
+
+/**
+ * Permanently deletes a standard donor user and all of their related records in a transaction.
+ *
+ * Why transaction? Wrapping deletes of related models (transactions, votes, etc.) along with the user record
+ * ensures database referential integrity is preserved and no orphaned data remains.
+ */
+export async function deleteDonor(req, res, next) {
+  try {
+    const id = req.params.id;
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, role: true },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'not_found', message: 'User not found.' });
+    }
+
+    if (targetUser.role !== 'DONOR') {
+      return res.status(400).json({ error: 'bad_request', message: 'Only standard donors can be deleted via this endpoint.' });
+    }
+
+    await prisma.$transaction([
+      prisma.transaction.deleteMany({ where: { userId: id } }),
+      prisma.vote.deleteMany({ where: { userId: id } }),
+      prisma.claimedMilestone.deleteMany({ where: { userId: id } }),
+      prisma.userTier.deleteMany({ where: { userId: id } }),
+      prisma.internalNotification.deleteMany({ where: { userId: id } }),
+      prisma.user.delete({ where: { id } }),
+    ]);
+
+    return res.status(200).json({
+      status: 'SUCCESS',
+      message: `Donor ${targetUser.email} has been permanently deleted.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 

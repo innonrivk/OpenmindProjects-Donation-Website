@@ -75,7 +75,25 @@
 
 .admin-sidebar__nav {
   flex: 1;
+  overflow-y: auto;
+  margin-bottom: var(--space-md);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
+
+.admin-sidebar__nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+.admin-sidebar__nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-sidebar__nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
 
 .admin-sidebar__nav ul {
   list-style: none;

@@ -6,6 +6,7 @@ import {
   listDonors,
   assignTierToUser,
   removeTierFromUser,
+  deleteDonor,
 } from '../../controllers/admin/adminUserController.js';
 import { addAllowedEmail } from '../../controllers/admin/adminAllowedEmailController.js';
 import { requirePermission } from '../../middleware/rbacAuth.js';
@@ -26,6 +27,7 @@ router.delete('/:id', removeAdmin);
 
 // Donor user & tier management routes
 router.get('/donors', listDonors);
+router.delete('/donors/:id', deleteDonor);
 router.post('/:id/tiers', assignTierToUser);
 router.delete('/:id/tiers/:tierId', removeTierFromUser);
 

@@ -32,7 +32,6 @@ export default function CMSUsers() {
     },
     enabled: activeTab === 'ADMINS',
   });
-
   const users = usersData.users || [];
 
   // Invite/Pre-assign mutation

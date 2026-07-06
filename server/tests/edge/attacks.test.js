@@ -101,4 +101,6 @@ test('Edge-Case: Mechanical Public Write-Block Guard (Risk A)', async (t) => {
     }
     assert.strictEqual(threw, false);
   });
+
+  await prismaPublic.$disconnect();
 });
