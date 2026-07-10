@@ -30,6 +30,7 @@ export default function CMSReceiptSettings() {
   const [activeTab, setActiveTab] = useState('GLOBAL');
   const [apiError, setApiError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [downloadingSample, setDownloadingSample] = useState(false);
   const subjectInputRef = useRef(null);
 
   // 1. Fetch Tiers list
@@ -134,6 +135,42 @@ export default function CMSReceiptSettings() {
     previewTierName = tier ? `${tier.name} Tier` : 'Supporter Tier';
   }
 
+  const handleDownloadSample = async () => {
+    if (downloadingSample) return;
+    setDownloadingSample(true);
+    setApiError('');
+    setSuccessMsg('');
+    try {
+      const payload = {
+        pdfThankYouMessage: watchedFields.pdfThankYouMessage,
+        pdfFooterNote: watchedFields.pdfFooterNote,
+        pdfSignatureName: watchedFields.pdfSignatureName,
+        isRecurring: activeTab !== 'ONE_TIME',
+        tierName: previewTierName,
+      };
+
+      const response = await adminApi.post('/receipt-settings/sample-pdf', payload, {
+        responseType: 'blob',
+      });
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.setAttribute('download', `OMP-receipt-sample-${dateStr}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setApiError('Failed to generate sample PDF.');
+    } finally {
+      setDownloadingSample(false);
+    }
+  };
+
   // Ref register callback to hold ref and apply react-hook-form bindings together
   const { ref: registeredRef, ...subjectInputProps } = register('emailSubjectTemplate');
 
@@ -209,9 +246,12 @@ export default function CMSReceiptSettings() {
             {errors.pdfSignatureName && <span className="field-error">{errors.pdfSignatureName.message}</span>}
           </div>
 
-          <div className="cms-form__actions" style={{ marginTop: '24px' }}>
+          <div className="cms-form__actions" style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button type="submit" className="cms-btn cms-btn--primary" style={{ width: '100%' }} disabled={isSubmitting}>
               {isSubmitting ? 'Saving changes...' : 'Save Settings Override'}
+            </button>
+            <button type="button" onClick={handleDownloadSample} className="cms-btn cms-btn--secondary" style={{ width: '100%' }} disabled={downloadingSample}>
+              {downloadingSample ? 'Generating PDF...' : 'Download Sample PDF'}
             </button>
           </div>
         </form>

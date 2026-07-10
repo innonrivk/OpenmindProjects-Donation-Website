@@ -375,7 +375,7 @@ export default function LedgerTab({
               </>
             ) : (
               <>
-                📊 Export to Excel
+                📊 Export list to Excel
               </>
             )}
           </button>

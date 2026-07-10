@@ -1,0 +1,64 @@
+services:
+
+  # ── Backend API ──────────────────────────────────────────────────────────────
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: omp-server
+    restart: unless-stopped
+    env_file:
+      # Mount your .env file at runtime — never bake secrets into the image.
+      - .env
+    environment:
+      # Override DATABASE_URL to point at the shared volume path inside container.
+      DATABASE_URL: file:/data/dev.db
+      NODE_ENV: production
+      PORT: 3001
+    volumes:
+      # Persist the SQLite database across container restarts.
+      # All Prisma migrations write to /data/dev.db inside the container.
+      - sqlite_data:/data
+    ports:
+      # Expose the API port for direct debugging (optional — client proxies internally).
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - omp-net
+
+  # ── Frontend (React + Nginx) ─────────────────────────────────────────────────
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      args:
+        # VITE_ vars are baked into the static bundle at build time.
+        # Set these in your shell or CI environment before running docker-compose.
+        VITE_API_URL: /api/v1
+        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+    container_name: omp-client
+    restart: unless-stopped
+    ports:
+      # The app is accessible at http://localhost:80 (or just http://localhost)
+      - "80:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - omp-net
+
+# ── Named volume for SQLite persistence ─────────────────────────────────────────
+volumes:
+  sqlite_data:
+    driver: local
+
+# ── Internal network so containers resolve each other by service name ─────────
+networks:
+  omp-net:
+    driver: bridge

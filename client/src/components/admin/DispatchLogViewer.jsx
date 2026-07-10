@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '../../lib/api.js';
+import DownloadReceiptButton from '../ui/DownloadReceiptButton.jsx';
+import DispatchRecipientList from './DispatchRecipientList.jsx';
 
 export default function DispatchLogViewer() {
   const [page, setPage] = useState(1);
+  const [expandedLogId, setExpandedLogId] = useState(null);
   const limit = 10;
 
   // Fetch dispatch logs
@@ -39,36 +42,71 @@ export default function DispatchLogViewer() {
                   <th style={{ padding: '12px' }}>Recipients</th>
                   <th style={{ padding: '12px' }}>Status</th>
                   <th style={{ padding: '12px' }}>Errors</th>
+                  <th style={{ padding: '12px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((log) => (
-                  <tr key={log.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '12px', fontSize: '13px' }}>
-                      {new Date(log.createdAt).toLocaleString()}
-                    </td>
-                    <td style={{ padding: '12px', fontWeight: 600 }}>
-                      {log.template?.name || `Template #${log.emailTemplateId}`}
-                    </td>
-                    <td style={{ padding: '12px', fontSize: '13px' }}>
-                      {log.triggeredBy === 'SYSTEM' ? (
-                        <span style={{ color: 'var(--brand-blue)', fontWeight: 600 }}>⚡ SYSTEM</span>
-                      ) : (
-                        `Admin (${log.triggeredBy.slice(0, 8)})`
-                      )}
-                    </td>
-                    <td style={{ padding: '12px', fontWeight: 600 }}>
-                      {log.recipientCount}
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      <span className={`log-status-badge ${log.status.toLowerCase()}`}>
-                        {log.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px', fontSize: '12px', color: 'var(--brand-red)' }}>
-                      {log.errorMessage || '—'}
-                    </td>
-                  </tr>
+                  <Fragment key={log.id}>
+                    <tr style={{ borderBottom: expandedLogId === log.id ? 'none' : '1px solid var(--color-border)' }}>
+                      <td style={{ padding: '12px', fontSize: '13px' }}>
+                        {new Date(log.createdAt).toLocaleString()}
+                      </td>
+                      <td style={{ padding: '12px', fontWeight: 600 }}>
+                        {log.template?.name || (log.emailTemplateId ? `Template #${log.emailTemplateId}` : 'Official Receipt')}
+                      </td>
+                      <td style={{ padding: '12px', fontSize: '13px' }}>
+                        {log.triggeredBy === 'SYSTEM' ? (
+                          <span style={{ color: 'var(--brand-blue)', fontWeight: 600 }}>⚡ SYSTEM</span>
+                        ) : (
+                          `Admin (${log.triggeredBy.slice(0, 8)})`
+                        )}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                          className="cms-btn cms-btn--secondary"
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          👥 {log.recipientCount}
+                        </button>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span className={`log-status-badge ${log.status.toLowerCase()}`}>
+                          {log.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px', fontSize: '12px', color: 'var(--brand-red)' }}>
+                        {log.errorMessage || '—'}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        {log.transactionId ? (
+                          <DownloadReceiptButton
+                            transactionId={log.transactionId}
+                            createdAt={log.createdAt}
+                            label="Download"
+                          />
+                        ) : (
+                          <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                    {expandedLogId === log.id && (
+                      <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        <td colSpan={7} style={{ padding: '12px', backgroundColor: 'rgba(0,0,0,0.01)' }}>
+                          <DispatchRecipientList dispatchId={log.id} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

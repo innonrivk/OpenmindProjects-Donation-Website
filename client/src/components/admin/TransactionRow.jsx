@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { z } from 'zod';
 import { adminApi } from '../../lib/api';
+import DownloadReceiptButton from '../ui/DownloadReceiptButton';
 
 const TransactionMetaSchema = z.object({
   subject: z.string().max(100, 'Subject cannot exceed 100 characters').optional().or(z.literal('')),
@@ -176,7 +177,13 @@ export default function TransactionRow({ tx }) {
                       />
                     </div>
                   </div>
-                  <div className="panel-actions" style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'flex-end', marginTop: 'var(--space-md)' }}>
+                  <div className="panel-actions" style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'flex-end', alignItems: 'center', marginTop: 'var(--space-md)' }}>
+                    <DownloadReceiptButton
+                      transactionId={tx.id}
+                      lastName={tx.user?.lastName || 'Unknown'}
+                      createdAt={tx.createdAt}
+                      label="Download PDF"
+                    />
                     <button type="button" onClick={handleCancel} className="cms-btn cms-btn--secondary" disabled={mutation.isPending}>
                       Cancel
                     </button>

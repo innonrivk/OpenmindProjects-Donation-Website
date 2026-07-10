@@ -305,6 +305,9 @@ export default function CMSDonorsTiers() {
                     >
                       {deleteDonorMutation.isPending && deleteDonorMutation.variables === donor.id ? 'Deleting...' : 'Delete Donor'}
                     </button>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '6px', marginBottom: 0, maxWidth: '120px', lineHeight: '1.3' }}>
+                      ℹ️ Removes donor from this list only.
+                    </p>
                   </td>
                 </tr>
               );

@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────
+# Stage 1 — Install & generate Prisma client
+# ─────────────────────────────────────────────
+FROM node:22-alpine AS deps
+
+WORKDIR /app
+
+# Install build tools needed by native modules (bcrypt, pdfkit, etc.)
+RUN apk add --no-cache python3 make g++ openssl
+
+COPY server/package*.json ./
+
+# Install all deps (including devDependencies for prisma CLI)
+RUN npm ci
+
+# Copy only the prisma schema so the client can be generated
+COPY server/prisma ./prisma
+
+# Generate the Prisma client for the linux-musl target inside Alpine
+RUN npx prisma generate
+
+# ─────────────────────────────────────────────
+# Stage 2 — Production image
+# ─────────────────────────────────────────────
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+
+# Runtime tools (openssl required by Prisma query engine)
+RUN apk add --no-cache openssl
+
+# Copy installed node_modules + generated Prisma client from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma
+
+# Copy application source
+COPY server/src ./src
+COPY server/prisma ./prisma
+
+# Create a writable directory for the SQLite database file.
+# In docker-compose this directory is mapped to a named volume so data
+# survives container restarts.
+RUN mkdir -p /data
+
+# Environment defaults — override every variable via docker-compose or .env
+ENV NODE_ENV=production \
+    PORT=3001 \
+    DATABASE_URL="file:/data/dev.db"
+
+EXPOSE 3001
+
+# Entrypoint: push the schema (creates tables if first boot) then start
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node src/index.js"]

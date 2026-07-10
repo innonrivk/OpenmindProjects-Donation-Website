@@ -74,7 +74,7 @@ export function withEmailTrigger(client) {
             // Queue user resolution and email dispatch to the next event loop tick.
             // This ensures the calling transaction commits and releases the connection
             // back to the pool, preventing deadlocks when connection_limit = 1.
-            setImmediate(async () => {
+            setTimeout(async () => {
               try {
                 const user = await client.user.findUnique({
                   where: { id: result.userId }
@@ -167,6 +167,35 @@ export function withEmailTrigger(client) {
                       pdfFooterNote,
                       pdfSignatureName,
                     }
+                  }).then(async (sent) => {
+                    try {
+                      const txCheck = await client.transaction.findUnique({ where: { id: result.id } });
+                      if (!txCheck) {
+                        logger.info('TRANSACTION_RECEIPT_LOG_SKIPPED_NOT_FOUND', { transactionId: result.id });
+                        return;
+                      }
+
+                      const log = await client.dispatchLog.create({
+                        data: {
+                          transactionId: result.id,
+                          triggeredBy: 'SYSTEM',
+                          recipientCount: 1,
+                          status: sent ? 'SENT' : 'FAILED',
+                          errorMessage: sent ? null : 'SMTP dispatch failed',
+                        }
+                      });
+
+                      await client.dispatchRecipient.create({
+                        data: {
+                          dispatchId: log.id,
+                          email: user.email,
+                          status: sent ? 'SENT' : 'FAILED',
+                          errorReason: sent ? null : 'SMTP dispatch failed',
+                        }
+                      });
+                    } catch (logErr) {
+                      logger.error('TRANSACTION_RECEIPT_LOG_FAILED', { error: logErr.message, transactionId: result.id });
+                    }
                   }).catch((err) => {
                     logger.error('TRANSACTION_RECEIPT_TRIGGER_FAILED', { error: err.message, transactionId: result.id });
                   });
@@ -176,7 +205,7 @@ export function withEmailTrigger(client) {
               } catch (err) {
                 logger.error('TRANSACTION_RECEIPT_USER_FETCH_FAILED', { error: err.message, transactionId: result.id });
               }
-            });
+            }, 100);
           }
 
           return result;

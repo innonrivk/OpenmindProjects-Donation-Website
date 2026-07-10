@@ -103,6 +103,14 @@ export async function triggerAutomation(eventName, context, tierId = null) {
           },
         });
 
+        await prisma.dispatchRecipient.createMany({
+          data: recipients.map((r) => ({
+            dispatchId: log.id,
+            email: r.email,
+            status: 'QUEUED',
+          })),
+        });
+
         for (const recipient of recipients) {
           await communicationQueue.add('DISPATCH_EMAIL', {
             type: 'DISPATCH_EMAIL',

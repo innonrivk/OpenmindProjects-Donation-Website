@@ -1,0 +1,38 @@
+# ── Node dependency directories ──
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ── Build outputs ──
+dist/
+build/
+.next/
+
+# ── Environment & secrets ──
+# Never send .env to the build daemon — pass secrets as env_file at runtime.
+.env
+.env.*
+
+# ── SQLite database files ──
+# The DB lives in the named Docker volume, not the image.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ── Development & tooling ──
+.agents/
+.git/
+.gitignore
+*.md
+README*
+
+# ── OS & IDE noise ──
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# ── Test files — not needed in production images ──
+server/tests/

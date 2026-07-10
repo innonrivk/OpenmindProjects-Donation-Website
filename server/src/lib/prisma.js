@@ -10,7 +10,8 @@ import { withEmailTrigger } from '../middleware/prismaEmailTrigger.js';
  * the email trigger fires consistently on every create operation.
  */
 const rawUrl = process.env.DATABASE_URL || 'file:./dev.db';
-const safetyParams = 'connection_limit=1&socket_timeout=10&busy_timeout=8000';
+const connectionLimit = process.env.CONNECTION_LIMIT || (process.env.NODE_ENV === 'test' ? '5' : '1');
+const safetyParams = `connection_limit=${connectionLimit}&socket_timeout=10&busy_timeout=8000`;
 const dbUrlWithConcurrencyConfig = rawUrl.includes('?') 
   ? `${rawUrl}&${safetyParams}` 
   : `${rawUrl}?${safetyParams}`;

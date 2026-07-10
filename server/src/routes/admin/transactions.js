@@ -14,6 +14,7 @@ import {
 import {
   exportTransactions,
 } from '../../controllers/admin/adminTransactionExportController.js';
+import { downloadTransactionReceipt } from '../../controllers/admin/adminReceiptDownloadController.js';
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.get('/metrics', getMetrics);
 router.get('/analytics/donations', getDonationAnalytics);
 router.get('/analytics/donations/download', downloadDonationAnalytics);
 router.get('/export', exportTransactions);
+router.get('/:id/receipt', downloadTransactionReceipt);
 router.get('/:id', getTransactionDetails);
 router.patch('/:id', updateTransactionMeta);
 

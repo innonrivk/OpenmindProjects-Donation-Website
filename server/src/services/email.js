@@ -37,10 +37,19 @@ export const transporter = nodemailer.createTransport({
     user: smtpUser,
     pass: process.env.SMTP_PASSWORD || '',
   },
-  pool: true,
+  pool: process.env.NODE_ENV !== 'test',
   maxConnections: 5,
   maxMessages: 100,
 });
+
+// Why mock sendMail in the test environment?
+// This prevents the application from making real SMTP network requests during test runs,
+// improving execution speed, preventing socket leaks, and enabling clean process terminations.
+if (process.env.NODE_ENV === 'test') {
+  transporter.sendMail = async () => {
+    return { messageId: 'mock-message-id' };
+  };
+}
 
 const BRAND_BLUE  = '#4285f4';
 const BRAND_DARK  = '#202124';

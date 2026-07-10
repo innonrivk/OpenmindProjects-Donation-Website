@@ -9,6 +9,44 @@ let worker = null;
 // Determine if we should attempt Redis connection
 const useRedis = !!redisUrl;
 
+async function updateDispatchLogStatus(dispatchId) {
+  try {
+    const recipients = await prisma.dispatchRecipient.findMany({
+      where: { dispatchId },
+      select: { status: true },
+    });
+    if (recipients.length === 0) return;
+    const sentCount = recipients.filter((r) => r.status === 'SENT').length;
+    const failCount = recipients.filter((r) => r.status === 'FAILED').length;
+    const queuedCount = recipients.filter((r) => r.status === 'QUEUED').length;
+
+    let status = 'QUEUED';
+    if (queuedCount === 0) {
+      if (failCount === 0) {
+        status = 'SENT';
+      } else if (sentCount === 0) {
+        status = 'FAILED';
+      } else {
+        status = 'PARTIAL';
+      }
+    } else {
+      if (sentCount > 0 || failCount > 0) {
+        status = 'PARTIAL';
+      }
+    }
+
+    await prisma.dispatchLog.update({
+      where: { id: dispatchId },
+      data: {
+        status,
+        errorMessage: failCount > 0 ? `${failCount} failed` : null,
+      },
+    });
+  } catch (err) {
+    console.error('Failed to update dispatch log status:', err.message);
+  }
+}
+
 if (useRedis) {
   try {
     queue = new Queue('comms', { connection: redisUrl });
@@ -21,15 +59,17 @@ if (useRedis) {
       if (type === 'DISPATCH_EMAIL') {
         try {
           await sendTemplatedEmail(payload.to, payload.template, payload.context);
-          await prisma.dispatchLog.update({
-            where: { id: payload.logId },
+          await prisma.dispatchRecipient.updateMany({
+            where: { dispatchId: payload.logId, email: payload.to },
             data: { status: 'SENT' },
           });
+          await updateDispatchLogStatus(payload.logId);
         } catch (err) {
-          await prisma.dispatchLog.update({
-            where: { id: payload.logId },
-            data: { status: 'FAILED', errorMessage: err.message },
+          await prisma.dispatchRecipient.updateMany({
+            where: { dispatchId: payload.logId, email: payload.to },
+            data: { status: 'FAILED', errorReason: err.message || 'SMTP dispatch failed' },
           });
+          await updateDispatchLogStatus(payload.logId);
           throw err; // Re-throw for BullMQ retry
         }
       }
@@ -47,6 +87,39 @@ if (useRedis) {
     worker = null;
   }
 }
+const fallbackQueue = [];
+let processingFallback = false;
+
+async function processFallbackQueue() {
+  if (processingFallback || fallbackQueue.length === 0) return;
+  processingFallback = true;
+
+  try {
+    while (fallbackQueue.length > 0) {
+      const job = fallbackQueue[0];
+      const { type, payload } = job;
+      if (type === 'DISPATCH_EMAIL') {
+        try {
+          await sendTemplatedEmail(payload.to, payload.template, payload.context);
+          await prisma.dispatchRecipient.updateMany({
+            where: { dispatchId: payload.logId, email: payload.to },
+            data: { status: 'SENT' },
+          });
+          await updateDispatchLogStatus(payload.logId);
+        } catch (err) {
+          await prisma.dispatchRecipient.updateMany({
+            where: { dispatchId: payload.logId, email: payload.to },
+            data: { status: 'FAILED', errorReason: err.message || 'SMTP dispatch failed' },
+          });
+          await updateDispatchLogStatus(payload.logId);
+        }
+      }
+      fallbackQueue.shift(); // Remove job only after it is fully processed
+    }
+  } finally {
+    processingFallback = false;
+  }
+}
 
 export const communicationQueue = {
   add: async (name, data) => {
@@ -58,23 +131,9 @@ export const communicationQueue = {
       }
     }
 
-    // Fallback: direct asynchronous dispatch
-    const { type, payload } = data;
-    if (type === 'DISPATCH_EMAIL') {
-      setImmediate(async () => {
-        try {
-          await sendTemplatedEmail(payload.to, payload.template, payload.context);
-          await prisma.dispatchLog.update({
-            where: { id: payload.logId },
-            data: { status: 'SENT' },
-          });
-        } catch (err) {
-          await prisma.dispatchLog.update({
-            where: { id: payload.logId },
-            data: { status: 'FAILED', errorMessage: err.message },
-          });
-        }
-      });
-    }
+    // Fallback: queue jobs sequentially to prevent SQLite database lock concurrency conflicts
+    fallbackQueue.push(data);
+    setImmediate(processFallbackQueue);
   },
+  isEmpty: () => fallbackQueue.length === 0 && !processingFallback,
 };

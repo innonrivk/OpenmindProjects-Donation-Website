@@ -31,6 +31,7 @@ function runSuite(suiteName, filePath) {
         ...process.env,
         TEST_PORT,
         NODE_ENV: 'test',
+        REDIS_URL: '', // Disable Redis in tests to prevent connection hangs
       },
     });
 
@@ -51,6 +52,7 @@ async function main() {
       PORT: TEST_PORT,
       NODE_ENV: 'test',
       DATABASE_URL: 'file:./dev.db', // Use the configured dev sqlite db
+      REDIS_URL: '', // Disable Redis in test server to prevent connection hangs
     },
   });
 

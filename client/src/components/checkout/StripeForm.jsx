@@ -6,6 +6,7 @@ import DonationReceipt from '../donation/DonationReceipt';
 import { useAuth } from '../../context/AuthContext';
 import { createSubscription, createOneTimeDonation } from '../../services/api';
 import COUNTRIES from '../../utils/countries';
+import ExpiryDatePicker from './ExpiryDatePicker';
 
 /**
  * Map Stripe / backend error codes to user-friendly messages.
@@ -119,7 +120,15 @@ export default function StripeForm({ amount, onClose, isRecurring = true, box = 
   const [mockCvc, setMockCvc] = useState('000');
 
   const isCardValid = mockCard.replace(/\s/g, '').length === 16;
-  const isExpiryValid = /^\d{2}\/\d{2}$/.test(mockExpiry);
+  const isExpiryValid = (() => {
+    if (!/^\d{2}\/\d{2}$/.test(mockExpiry)) return false;
+    const [month, year] = mockExpiry.split('/').map(Number);
+    if (month < 1 || month > 12) return false;
+    const today = new Date();
+    const currentYear2Digit = today.getFullYear() % 100;
+    const currentMonth = today.getMonth() + 1;
+    return year > currentYear2Digit || (year === currentYear2Digit && month >= currentMonth);
+  })();
   const isCvcValid = mockCvc.length === 3;
 
   const handleMockCardChange = (e) => {
@@ -128,13 +137,7 @@ export default function StripeForm({ amount, onClose, isRecurring = true, box = 
     setMockCard(formatted);
   };
 
-  const handleMockExpiryChange = (e) => {
-    let val = e.target.value.replace(/\D/g, '').slice(0, 4);
-    if (val.length >= 3) {
-      val = val.slice(0, 2) + '/' + val.slice(2);
-    }
-    setMockExpiry(val);
-  };
+
 
   const handleMockCvcChange = (e) => {
     let val = e.target.value.replace(/\D/g, '').slice(0, 3);
@@ -163,6 +166,18 @@ export default function StripeForm({ amount, onClose, isRecurring = true, box = 
       }
       if (!/^\d{2}\/\d{2}$/.test(mockExpiry)) {
         errs.expiry = 'Expiration date must be MM/YY';
+      } else {
+        const [month, year] = mockExpiry.split('/').map(Number);
+        if (month < 1 || month > 12) {
+          errs.expiry = 'Month must be 01-12';
+        } else {
+          const today = new Date();
+          const currentYear2Digit = today.getFullYear() % 100;
+          const currentMonth = today.getMonth() + 1;
+          if (year < currentYear2Digit || (year === currentYear2Digit && month < currentMonth)) {
+            errs.expiry = 'Card is expired';
+          }
+        }
       }
       if (mockCvc.length !== 3) {
         errs.cvc = 'CVC must be 3 digits';
@@ -408,6 +423,8 @@ export default function StripeForm({ amount, onClose, isRecurring = true, box = 
         </select>
         {errors.country && <span className="input-group__error">{errors.country}</span>}
       </div>
+      
+
 
       {/* Card Details */}
       <div>
@@ -439,25 +456,14 @@ export default function StripeForm({ amount, onClose, isRecurring = true, box = 
             {errors.card && <span style={{ fontSize: '12px', color: 'var(--color-error)', display: 'block', margin: '-4px 0 4px 4px' }}>{errors.card}</span>}
             
             <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                placeholder="MM/YY"
+              <ExpiryDatePicker
                 value={mockExpiry}
-                onChange={handleMockExpiryChange}
-                style={{
-                  width: '50%',
-                  padding: '12px 16px',
-                  border: isExpiryValid
-                    ? '1px solid #34a853'
-                    : (errors.expiry ? '1px solid var(--color-error)' : '1px solid var(--color-border)'),
-                  boxShadow: isExpiryValid ? '0 0 0 3px rgba(52, 168, 83, 0.15)' : 'none',
-                  transition: 'all 0.2s ease',
-                  borderRadius: '8px',
-                  backgroundColor: '#ffffff',
-                  color: 'var(--color-text-primary)',
-                  fontSize: '16px',
-                  fontFamily: 'Inter, sans-serif',
+                onChange={(val) => {
+                  setMockExpiry(val);
+                  setErrors(prev => ({ ...prev, expiry: '' }));
                 }}
+                error={errors.expiry}
+                isValid={isExpiryValid}
               />
               <input
                 type="text"

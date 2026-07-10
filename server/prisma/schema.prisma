@@ -71,6 +71,7 @@ model Transaction {
   adminNote              String?           @map("admin_note")
   createdAt              DateTime          @default(now()) @map("created_at")
   user                   User              @relation(fields: [userId], references: [id])
+  dispatchLogs           DispatchLog[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("transactions")
@@ -315,18 +316,35 @@ model AdminRoleAssignment {
 }
 
 model DispatchLog {
-  id              Int           @id @default(autoincrement())
-  emailTemplateId Int           @map("email_template_id")
-  triggeredBy     String        @map("triggered_by")
-  recipientCount  Int           @default(0) @map("recipient_count")
-  status          String        @default("QUEUED")
-  errorMessage    String?       @map("error_message")
-  createdAt       DateTime      @default(now()) @map("created_at")
+  id              Int            @id @default(autoincrement())
+  emailTemplateId Int?           @map("email_template_id")
+  transactionId   String?        @map("transaction_id")
+  triggeredBy     String         @map("triggered_by")
+  recipientCount  Int            @default(0) @map("recipient_count")
+  status          String         @default("QUEUED")
+  errorMessage    String?        @map("error_message")
+  createdAt       DateTime       @default(now()) @map("created_at")
 
-  template EmailTemplate @relation(fields: [emailTemplateId], references: [id])
+  template    EmailTemplate? @relation(fields: [emailTemplateId], references: [id])
+  transaction Transaction?   @relation(fields: [transactionId], references: [id])
+  recipients  DispatchRecipient[]
 
   @@index([emailTemplateId])
+  @@index([transactionId])
   @@map("dispatch_logs")
+}
+
+model DispatchRecipient {
+  id          Int     @id @default(autoincrement())
+  dispatchId  Int     @map("dispatch_id")
+  email       String
+  status      String  @default("QUEUED")
+  errorReason String? @map("error_reason")
+
+  dispatch DispatchLog @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+
+  @@index([dispatchId])
+  @@map("dispatch_recipients")
 }
 
 model InternalNotification {
