@@ -95,7 +95,7 @@ export async function deleteProject(req, res, next) {
       return res.status(400).json({ error: ErrorCodes.VALIDATION_ERROR, message: 'Invalid project ID.' });
     }
 
-    // SQLite safe cascade or transaction clean up
+    // Perform transaction clean up
     await prisma.$transaction(async (tx) => {
       // Delete votes related to this project
       await tx.vote.deleteMany({

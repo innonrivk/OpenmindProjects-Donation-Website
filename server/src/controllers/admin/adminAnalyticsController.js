@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import fs from 'fs';
 import path from 'path';
@@ -28,8 +29,8 @@ function resolveGranularity(startDate, endDate) {
  *
  * Why? Centralising analytics query logic here allows both the controller
  * and the SVG download endpoint to share the same filtered dataset without
- * duplicating WHERE logic. SQLite lacks advanced date grouping so period
- * filling is done in JavaScript after fetching raw aggregated sums.
+ * duplicating WHERE logic. Period filling is done in JavaScript after fetching 
+ * raw aggregated sums.
  * Amounts stored in cents are converted to USD at this layer.
  *
  * @param {object} [filters]
@@ -69,17 +70,14 @@ async function buildAnalyticsData(filters = {}) {
    * Values are validated/cast to primitives before use so template injection is safe.
    */
   const typeClause = filters.donationType === 'MONTHLY'
-    ? 'AND is_recurring = 1'
+    ? 'AND is_recurring = true'
     : filters.donationType === 'ONE_TIME'
-      ? 'AND is_recurring = 0'
+      ? 'AND is_recurring = false'
       : '';
 
   const tierClause = filters.tierId
-    ? `AND user_id IN (SELECT user_id FROM user_tiers WHERE tier_id = ${filters.tierId})`
+    ? `AND user_id IN (SELECT user_id FROM user_tiers WHERE tier_id = ${Number(filters.tierId)})`
     : '';
-
-  const startMs = startDate.getTime();
-  const endMs   = endDate.getTime();
 
   // ── MONTHLY granularity ──────────────────────────────────────────────────
   if (granularity === 'monthly') {
@@ -93,19 +91,19 @@ async function buildAnalyticsData(filters = {}) {
       cur.setMonth(cur.getMonth() + 1);
     }
 
-    const raw = await prisma.$queryRawUnsafe(`
+    const raw = await prisma.$queryRaw`
       SELECT
-        strftime('%Y-%m', created_at / 1000, 'unixepoch') AS period,
-        is_recurring AS isRecurring,
+        to_char(created_at, 'YYYY-MM') AS period,
+        is_recurring AS "isRecurring",
         SUM(amount) AS total
       FROM transactions
       WHERE status = 'SUCCEEDED'
-        AND created_at >= ${startMs}
-        AND created_at <= ${endMs}
-        ${typeClause}
-        ${tierClause}
+        AND created_at >= ${startDate}
+        AND created_at <= ${endDate}
+        ${Prisma.raw(typeClause)}
+        ${Prisma.raw(tierClause)}
       GROUP BY period, is_recurring
-    `);
+    `;
 
     const map = {};
     for (const row of raw) {
@@ -135,19 +133,19 @@ async function buildAnalyticsData(filters = {}) {
       yearlyPeriods.push(String(y));
     }
 
-    const raw = await prisma.$queryRawUnsafe(`
+    const raw = await prisma.$queryRaw`
       SELECT
-        strftime('%Y', created_at / 1000, 'unixepoch') AS period,
-        is_recurring AS isRecurring,
+        to_char(created_at, 'YYYY') AS period,
+        is_recurring AS "isRecurring",
         SUM(amount) AS total
       FROM transactions
       WHERE status = 'SUCCEEDED'
-        AND created_at >= ${startMs}
-        AND created_at <= ${endMs}
-        ${typeClause}
-        ${tierClause}
+        AND created_at >= ${startDate}
+        AND created_at <= ${endDate}
+        ${Prisma.raw(typeClause)}
+        ${Prisma.raw(tierClause)}
       GROUP BY period, is_recurring
-    `);
+    `;
 
     const map = {};
     for (const row of raw) {
@@ -184,19 +182,19 @@ async function buildAnalyticsData(filters = {}) {
     curBucket.setDate(curBucket.getDate() + bucketSize);
   }
 
-  const raw = await prisma.$queryRawUnsafe(`
+  const raw = await prisma.$queryRaw`
     SELECT
-      strftime('%Y-%m-%d', created_at / 1000, 'unixepoch') AS period,
-      is_recurring AS isRecurring,
+      to_char(created_at, 'YYYY-MM-DD') AS period,
+      is_recurring AS "isRecurring",
       SUM(amount) AS total
     FROM transactions
     WHERE status = 'SUCCEEDED'
-      AND created_at >= ${startMs}
-      AND created_at <= ${endMs}
-      ${typeClause}
-      ${tierClause}
+      AND created_at >= ${startDate}
+      AND created_at <= ${endDate}
+      ${Prisma.raw(typeClause)}
+      ${Prisma.raw(tierClause)}
     GROUP BY period, is_recurring
-  `);
+  `;
 
   const map = {};
   for (const row of raw) {

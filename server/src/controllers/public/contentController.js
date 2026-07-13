@@ -1,25 +1,6 @@
 import prisma from '../../lib/prisma.js';
 
 /**
- * Module-level in-memory cache holding the dynamic copy dictionary.
- * 
- * Why in-memory? SQLite suffers from read concurrency bottlenecks under heavy load. 
- * Storing a flat, single-level lookup dictionary in-memory reduces DB roundtrips to 
- * exactly zero for active users.
- */
-let cachedContent = null;
-
-/**
- * Programmatically resets the dynamic site text cache.
- * 
- * Why export this? Enables the admin content controller to trigger cache invalidation 
- * whenever a batch update commits successfully.
- */
-export const clearContentCache = () => {
-  cachedContent = null;
-};
-
-/**
  * GET /api/v1/public/content/site-text
  * 
  * Fetches, structures, and returns all dynamic site copy fields.
@@ -37,18 +18,13 @@ export const getPublicContent = async (req, res, next) => {
   try {
     res.set('Cache-Control', 'public, max-age=0, must-revalidate');
 
-    if (cachedContent) {
-      return res.status(200).json(cachedContent);
-    }
-
     const records = await prisma.siteText.findMany();
     const content = records.reduce((acc, curr) => {
       acc[curr.key] = curr.value;
       return acc;
     }, {});
 
-    cachedContent = content;
-    return res.status(200).json(cachedContent);
+    return res.status(200).json(content);
   } catch (error) {
     next(error);
   }

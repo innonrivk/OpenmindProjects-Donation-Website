@@ -1,0 +1,20 @@
+name: API Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: cd server && npm ci
+      - run: cd server && npx prisma generate
+      - run: cd server && npx prisma migrate deploy
+      - run: cd server && node tests/run.js
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgres://omp_user:omp_dev_password@localhost:5432/omp_test
+          JWT_SECRET: test-secret
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}

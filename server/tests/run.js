@@ -1,9 +1,13 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const serverPath = resolve(__dirname, '../src/index.js');
+dotenv.config({ path: resolve(__dirname, '../.env') });
+
+const serverDir = resolve(__dirname, '..');
+const serverPath = resolve(serverDir, 'src/index.js');
 
 const TEST_PORT = '3002';
 const HEALTH_URL = `http://localhost:${TEST_PORT}/api/v1/health`;
@@ -22,15 +26,17 @@ async function waitUrl(url, timeoutMs = 8000) {
   return false;
 }
 
-function runSuite(suiteName, filePath) {
+function runSuite(suiteName, filePath, databaseUrl) {
   return new Promise((resolvePromise) => {
     console.log(`\n🏃 Running Suite: ${suiteName} (${filePath})`);
     const child = spawn('node', ['--test', filePath], {
       stdio: 'inherit',
+      cwd: serverDir,
       env: {
         ...process.env,
         TEST_PORT,
         NODE_ENV: 'test',
+        DATABASE_URL: databaseUrl,
         REDIS_URL: '', // Disable Redis in tests to prevent connection hangs
       },
     });
@@ -44,14 +50,43 @@ function runSuite(suiteName, filePath) {
 async function main() {
   console.log('🧪 Starting OMP Test Suite Runner...');
 
+  const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://omp_user:omp_dev_password@localhost:5432/omp_test';
+
+  // 0. Perform Database reset
+  console.log('🔄 Resetting test database schema...');
+  try {
+    execSync('npx prisma db push --force-reset', {
+      stdio: 'inherit',
+      cwd: serverDir,
+      env: {
+        ...process.env,
+        DATABASE_URL: TEST_DATABASE_URL,
+      },
+    });
+    console.log('🌱 Seeding test database...');
+    execSync('node prisma/seed.js', {
+      stdio: 'inherit',
+      cwd: serverDir,
+      env: {
+        ...process.env,
+        DATABASE_URL: TEST_DATABASE_URL,
+      },
+    });
+    console.log('✅ Test database reset and seed completed successfully!');
+  } catch (err) {
+    console.error('🚨 Failed to reset/seed test database:', err.message);
+    process.exit(1);
+  }
+
   // 1. Spawn the backend server on a test port
   console.log(`🚀 Starting test server on port ${TEST_PORT}...`);
   const server = spawn('node', [serverPath], {
+    cwd: serverDir,
     env: {
       ...process.env,
       PORT: TEST_PORT,
       NODE_ENV: 'test',
-      DATABASE_URL: 'file:./dev.db', // Use the configured dev sqlite db
+      DATABASE_URL: TEST_DATABASE_URL,
       REDIS_URL: '', // Disable Redis in test server to prevent connection hangs
     },
   });
@@ -79,17 +114,26 @@ async function main() {
     console.log('🔌 Test server is healthy and listening!\n');
 
     // 3. Run all test files
-    const unitSuccess = await runSuite('Unit Tests', resolve(__dirname, 'unit/middleware.test.js'));
-    const rbacUnitSuccess = await runSuite('RBAC Unit Tests', resolve(__dirname, 'unit/rbac.test.js'));
-    const integrationSuccess = await runSuite('Integration Tests', resolve(__dirname, 'integration/api.test.js'));
-    const rbacIntegrationSuccess = await runSuite('RBAC Integration Tests', resolve(__dirname, 'integration/rbac.test.js'));
-    const edgeSuccess = await runSuite('Edge-Case Tests', resolve(__dirname, 'edge/attacks.test.js'));
-    const tracksSuccess = await runSuite('Donation Track Tests', resolve(__dirname, 'edge/tracks.test.js'));
-    const envSuccess = await runSuite('Env Edge-Case Tests', resolve(__dirname, 'edge/env.test.js'));
-    const tierAssignmentSuccess = await runSuite('Tier Assignment Tests', resolve(__dirname, 'unit/tierAssignment.test.js'));
-    const tiersIntegrationSuccess = await runSuite('Tiers E2E Integration Tests', resolve(__dirname, 'edge/tiers.test.js'));
-    const subUpdateSuccess = await runSuite('Subscription Update (No Card Re-entry)', resolve(__dirname, 'edge/subscription_update.test.js'));
-    const commsSuccess = await runSuite('Communications Flow Tests', resolve(__dirname, 'edge/communications.test.js'));
+    const unitSuccess = await runSuite('Unit Tests', resolve(__dirname, 'unit/middleware.test.js'), TEST_DATABASE_URL);
+    const rbacUnitSuccess = await runSuite('RBAC Unit Tests', resolve(__dirname, 'unit/rbac.test.js'), TEST_DATABASE_URL);
+    const integrationSuccess = await runSuite('Integration Tests', resolve(__dirname, 'integration/api.test.js'), TEST_DATABASE_URL);
+    const rbacIntegrationSuccess = await runSuite('RBAC Integration Tests', resolve(__dirname, 'integration/rbac.test.js'), TEST_DATABASE_URL);
+    const edgeSuccess = await runSuite('Edge-Case Tests', resolve(__dirname, 'edge/attacks.test.js'), TEST_DATABASE_URL);
+    const tracksSuccess = await runSuite('Donation Track Tests', resolve(__dirname, 'edge/tracks.test.js'), TEST_DATABASE_URL);
+    const envSuccess = await runSuite('Env Edge-Case Tests', resolve(__dirname, 'edge/env.test.js'), TEST_DATABASE_URL);
+    const tierAssignmentSuccess = await runSuite('Tier Assignment Tests', resolve(__dirname, 'unit/tierAssignment.test.js'), TEST_DATABASE_URL);
+    const tiersIntegrationSuccess = await runSuite('Tiers E2E Integration Tests', resolve(__dirname, 'edge/tiers.test.js'), TEST_DATABASE_URL);
+    const subUpdateSuccess = await runSuite('Subscription Update (No Card Re-entry)', resolve(__dirname, 'edge/subscription_update.test.js'), TEST_DATABASE_URL);
+    const commsSuccess = await runSuite('Communications Flow Tests', resolve(__dirname, 'edge/communications.test.js'), TEST_DATABASE_URL);
+
+    // New test suites
+    const receiptSettingsSuccess = await runSuite('Receipt Settings Tests', resolve(__dirname, 'integration/receiptSettings.test.js'), TEST_DATABASE_URL);
+    const allowedEmailsSuccess = await runSuite('Allowed Emails Tests', resolve(__dirname, 'integration/allowedEmails.test.js'), TEST_DATABASE_URL);
+    const contentSuccess = await runSuite('Content CRUD Tests', resolve(__dirname, 'integration/content.test.js'), TEST_DATABASE_URL);
+    const adminSettingsSuccess = await runSuite('Admin Settings Tests', resolve(__dirname, 'integration/adminSettings.test.js'), TEST_DATABASE_URL);
+    const milestonesSuccess = await runSuite('Milestones Claim Tests', resolve(__dirname, 'integration/milestones.test.js'), TEST_DATABASE_URL);
+    const exportSuccess = await runSuite('Transaction Export Edge Tests', resolve(__dirname, 'edge/transactionExport.test.js'), TEST_DATABASE_URL);
+    const postgresSuccess = await runSuite('PostgreSQL-Specific Tests', resolve(__dirname, 'integration/postgres.test.js'), TEST_DATABASE_URL);
 
     console.log('\n📊 Test execution summary:');
     console.log(`   Unit Tests:             ${unitSuccess ? '✅ PASS' : '❌ FAIL'}`);
@@ -103,8 +147,22 @@ async function main() {
     console.log(`   Tiers Integration:      ${tiersIntegrationSuccess ? '✅ PASS' : '❌ FAIL'}`);
     console.log(`   Sub Update (No Card):   ${subUpdateSuccess ? '✅ PASS' : '❌ FAIL'}`);
     console.log(`   Communications:         ${commsSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Receipt Settings:       ${receiptSettingsSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Allowed Emails:         ${allowedEmailsSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Content CRUD:           ${contentSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Admin Settings:         ${adminSettingsSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Milestones Claim:       ${milestonesSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   Transaction Export:     ${exportSuccess ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`   PostgreSQL Specific:    ${postgresSuccess ? '✅ PASS' : '❌ FAIL'}`);
 
-    if (unitSuccess && rbacUnitSuccess && integrationSuccess && rbacIntegrationSuccess && edgeSuccess && tracksSuccess && envSuccess && tierAssignmentSuccess && tiersIntegrationSuccess && subUpdateSuccess && commsSuccess) {
+    const allSuccess =
+      unitSuccess && rbacUnitSuccess && integrationSuccess && rbacIntegrationSuccess &&
+      edgeSuccess && tracksSuccess && envSuccess && tierAssignmentSuccess &&
+      tiersIntegrationSuccess && subUpdateSuccess && commsSuccess &&
+      receiptSettingsSuccess && allowedEmailsSuccess && contentSuccess &&
+      adminSettingsSuccess && milestonesSuccess && exportSuccess && postgresSuccess;
+
+    if (allSuccess) {
       console.log('\n🎉 ALL TEST SUITES PASSED SUCCESSFULLY!');
       server.kill();
       process.exit(0);

@@ -120,7 +120,7 @@ export function withEmailTrigger(client) {
                       if (tier) {
                         tierName = tier.name;
                         tierId = tier.id;
-                        // perks is stored as a JSON array in SQLite
+                        // perks is stored as a JSON array
                         tierPerks = Array.isArray(tier.perks) ? tier.perks : JSON.parse(tier.perks || '[]');
                       }
                     } catch (tierErr) {

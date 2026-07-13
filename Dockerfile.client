@@ -6,7 +6,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY client/package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy the full client source
 COPY client/ .
@@ -14,9 +14,15 @@ COPY client/ .
 # The Vite build reads VITE_* env vars at BUILD TIME.
 # Pass them as build args so they get baked into the static bundle.
 ARG VITE_API_URL=/api/v1
+
+# VITE_STRIPE_PUBLISHABLE_KEY is Stripe's *public* client-side key (pk_test_ / pk_live_).
+# It is intentionally embedded in the browser bundle — this is required and documented by Stripe.
+# The actual secret key (STRIPE_SECRET_KEY) only exists in the server container, never here.
+# hadolint ignore=DL3025
 ARG VITE_STRIPE_PUBLISHABLE_KEY
 ARG VITE_GOOGLE_CLIENT_ID
 
+# hadolint ignore=DL3025
 ENV VITE_API_URL=$VITE_API_URL \
     VITE_STRIPE_PUBLISHABLE_KEY=$VITE_STRIPE_PUBLISHABLE_KEY \
     VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID

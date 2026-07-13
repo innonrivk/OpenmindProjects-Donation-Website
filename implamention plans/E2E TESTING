@@ -1,0 +1,605 @@
+# End-to-End Testing Plan — OpenmindProjects Donation Platform
+
+## Overview
+
+This plan defines a comprehensive testing strategy for the full OpenmindProjects donation platform, covering both **backend API test gap coverage** and **full-stack Playwright browser E2E tests** across all critical user flows.
+
+---
+
+## Design Decisions Summary
+
+| Decision | Choice |
+|---|---|
+| **E2E Framework** | Playwright |
+| **Stripe Handling** | Real Stripe test mode API calls |
+| **Email Validation** | Gmail workspace (real integrated email) |
+| **Google OAuth** | Real OAuth flow with dedicated test Gmail account |
+| **Test Database** | Dedicated `omp_test` PostgreSQL database (`prisma migrate reset --force`) |
+| **Browsers** | Chromium only |
+| **Viewports** | Desktop (1280×720) + Mobile (375×667 iPhone SE) |
+| **Failure Artifacts** | Screenshots on failure + video for failed tests only |
+| **CI/CD** | GitHub Actions — API tests on push/PR, Playwright nightly |
+
+---
+
+## Part 1: Backend API Test Coverage Expansion
+
+These 6 new test suites fill gaps in the existing 11-suite Node.js test runner ([run.js](file:///c:/Users/Lenovo/OneDrive/Documents/Donation%20site/Donation-Site-Project/server/tests/run.js)).
+
+> [!NOTE]
+> Previously, test files were prohibited from importing Prisma directly due to SQLite's single-writer limitation. With PostgreSQL, this constraint no longer applies. Tests may safely use direct Prisma imports to assert database state alongside HTTP calls.
+
+---
+
+### Suite 12: Receipt Settings API
+
+**File**: `server/tests/integration/receiptSettings.test.js`
+
+| # | Test Case | Method | Endpoint | Assertions |
+|---|-----------|--------|----------|------------|
+| 1 | GET current receipt template | GET | `/admin/receipt-settings` | Returns 200, body contains `headerHtml`, `footerHtml`, `variables` |
+| 2 | PUT update receipt template | PUT | `/admin/receipt-settings` | Returns 200, updated fields persist |
+| 3 | Variable substitution preview | POST | `/admin/receipt-settings/preview` | Returns rendered HTML with `{{donorName}}`, `{{amount}}` replaced |
+| 4 | Reject update with invalid HTML | PUT | `/admin/receipt-settings` | Returns 400 for malformed template |
+| 5 | Unauthorized access (no token) | GET | `/admin/receipt-settings` | Returns 401 |
+
+---
+
+### Suite 13: Allowed Emails API
+
+**File**: `server/tests/integration/allowedEmails.test.js`
+
+| # | Test Case | Method | Endpoint | Assertions |
+|---|-----------|--------|----------|------------|
+| 1 | GET all allowed emails | GET | `/admin/users/allowed-emails` | Returns 200, array of email entries |
+| 2 | POST add a new allowed email | POST | `/admin/users/allowed-emails` | Returns 201, email appears in subsequent GET |
+| 3 | POST reject duplicate email | POST | `/admin/users/allowed-emails` | Returns 409 conflict |
+| 4 | POST reject invalid email format | POST | `/admin/users/allowed-emails` | Returns 400 with Zod validation error |
+| 5 | DELETE remove allowed email | DELETE | `/admin/users/allowed-emails/:id` | Returns 200, email no longer in GET list |
+| 6 | Unauthorized access (no token) | POST | `/admin/users/allowed-emails` | Returns 401 |
+
+---
+
+### Suite 14: Content API
+
+**File**: `server/tests/integration/content.test.js`
+
+| # | Test Case | Method | Endpoint | Assertions |
+|---|-----------|--------|----------|------------|
+| 1 | GET all public content blocks | GET | `/public/content` | Returns 200, array of content entries |
+| 2 | GET specific content by key | GET | `/public/content/:key` | Returns 200, matching content body |
+| 3 | PUT update content block (admin) | PUT | `/admin/content/:key` | Returns 200, updated content persists |
+| 4 | PUT reject empty body | PUT | `/admin/content/:key` | Returns 400 |
+| 5 | Public GET reflects admin PUT | GET→PUT→GET | `/public/content/:key` | Content matches after update |
+| 6 | Unauthorized content update | PUT | `/admin/content/:key` (no token) | Returns 401 |
+
+---
+
+### Suite 15: Admin Settings API
+
+**File**: `server/tests/integration/adminSettings.test.js`
+
+| # | Test Case | Method | Endpoint | Assertions |
+|---|-----------|--------|----------|------------|
+| 1 | GET admin profile | GET | `/admin/auth/me` | Returns 200, contains `email`, `role` |
+| 2 | PUT change password (valid) | PUT | `/admin/auth/change-password` | Returns 200 |
+| 3 | PUT change password (wrong current) | PUT | `/admin/auth/change-password` | Returns 401 or 400 |
+| 4 | PUT change password (too short new) | PUT | `/admin/auth/change-password` | Returns 400 Zod error |
+| 5 | Token refresh flow | POST | `/admin/auth/refresh` | Returns new access token |
+
+---
+
+### Suite 16: Public Milestones API
+
+**File**: `server/tests/integration/milestones.test.js`
+
+| # | Test Case | Method | Endpoint | Assertions |
+|---|-----------|--------|----------|------------|
+| 1 | GET all milestones (public) | GET | `/public/milestones` | Returns 200, array with milestone data |
+| 2 | GET milestones for specific project | GET | `/public/milestones?projectId=X` | Returns filtered list |
+| 3 | POST claim milestone (eligible) | POST | `/public/milestones/:id/claim` | Returns 200 with confirmation |
+| 4 | POST claim milestone (ineligible — insufficient donations) | POST | `/public/milestones/:id/claim` | Returns 403 or 400 |
+| 5 | POST claim milestone (already claimed) | POST | `/public/milestones/:id/claim` | Returns 409 conflict |
+| 6 | GET milestone tracks (one-time vs monthly) | GET | `/public/milestones` | `isRecurring` field matches track type |
+
+---
+
+### Suite 17: Transaction Export API
+
+**File**: `server/tests/edge/transactionExport.test.js`
+
+| # | Test Case | Method | Endpoint | Assertions |
+|---|-----------|--------|----------|------------|
+| 1 | Export all transactions as Excel | GET | `/admin/transactions/export` | Returns 200, valid `.xlsx` content-type |
+| 2 | Export with date range filter | GET | `/admin/transactions/export?from=X&to=Y` | Returns filtered rows only |
+| 3 | Export with empty result set | GET | `/admin/transactions/export?from=2099-01-01` | Returns 200, workbook with header row only |
+| 4 | Export respects `isRecurring` filter | GET | `/admin/transactions/export?isRecurring=true` | All rows have `isRecurring=true` |
+| 5 | Unauthorized export (no token) | GET | `/admin/transactions/export` | Returns 401 |
+
+---
+
+### Test Runner Update
+
+Update [run.js](file:///c:/Users/Lenovo/OneDrive/Documents/Donation%20site/Donation-Site-Project/server/tests/run.js) to include all 6 new suites (suites 12–17), maintaining the sequential execution pattern.
+
+---
+
+## Part 2: Playwright E2E Browser Tests
+
+### Project Setup
+
+```
+client/
+├── playwright.config.js          # Playwright configuration
+├── e2e/
+│   ├── fixtures/
+│   │   └── auth.fixture.js       # Shared login helpers (Google OAuth + Admin)
+│   ├── public/
+│   │   ├── 01-auth-login.spec.js
+│   │   ├── 02-dashboard.spec.js
+│   │   ├── 03-one-time-donation.spec.js
+│   │   ├── 04-subscription-flow.spec.js
+│   │   └── 05-settings.spec.js
+│   └── admin/
+│       ├── 01-admin-login.spec.js
+│       ├── 02-projects-crud.spec.js
+│       ├── 03-milestones-crud.spec.js
+│       ├── 04-tiers-crud.spec.js
+│       ├── 05-users-management.spec.js
+│       ├── 06-transactions-ledger.spec.js
+│       ├── 07-communication-hub.spec.js
+│       ├── 08-receipt-settings.spec.js
+│       ├── 09-notifications.spec.js
+│       ├── 10-rbac-access-control.spec.js
+│       └── 11-website-content.spec.js
+```
+
+---
+
+### Playwright Configuration
+
+```javascript
+// playwright.config.js
+{
+  testDir: './e2e',
+  timeout: 60000,
+  retries: 1,
+  workers: 1,  // Sequential — shares test DB
+  use: {
+    baseURL: 'http://localhost:5173',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    trace: 'retain-on-failure',
+  },
+  projects: [
+    { name: 'desktop', use: { viewport: { width: 1280, height: 720 } } },
+    { name: 'mobile', use: { viewport: { width: 375, height: 667 } } },
+  ],
+}
+```
+
+---
+
+### E2E Test Suites — Public User Flows
+
+---
+
+#### Suite P1: Google OAuth Login & Signup
+
+**File**: `e2e/public/01-auth-login.spec.js`
+
+| # | Test Case | Viewport | Steps | Assertions |
+|---|-----------|----------|-------|------------|
+| 1 | Google OAuth login redirects to Google | Desktop | Click "Sign in with Google" | Google consent screen appears |
+| 2 | Complete Google OAuth flow | Desktop | Enter test Gmail credentials → approve | Redirected to dashboard, user name visible |
+| 3 | New user signup via OAuth | Desktop | Login with unused test Gmail | OTP verification page appears |
+| 4 | OTP verification completes signup | Desktop | Enter OTP code → submit | Dashboard loads with welcome message |
+| 5 | Login button visible on mobile | Mobile | Navigate to login page | "Sign in with Google" button is tappable |
+
+> [!IMPORTANT]
+> **Prerequisite**: A dedicated test Gmail account must be configured. Store credentials in environment variables: `TEST_GOOGLE_EMAIL`, `TEST_GOOGLE_PASSWORD`.
+
+---
+
+#### Suite P2: User Dashboard
+
+**File**: `e2e/public/02-dashboard.spec.js`
+
+| # | Test Case | Viewport | Steps | Assertions |
+|---|-----------|----------|-------|------------|
+| 1 | Dashboard loads after login | Desktop | Login → navigate to `/dashboard` | Page title, user name, donation stats visible |
+| 2 | Milestone cards render | Desktop | Scroll to milestones section | At least one milestone card appears |
+| 3 | Tier badge displays | Desktop | Check user info section | Current tier badge is visible |
+| 4 | Transaction history loads | Desktop | Scroll to transaction section | Table or list of past donations renders |
+| 5 | Mobile dashboard layout | Mobile | Login → navigate to `/dashboard` | All sections stack vertically, no horizontal overflow |
+
+---
+
+#### Suite P3: One-Time Donation Flow
+
+**File**: `e2e/public/03-one-time-donation.spec.js`
+
+| # | Test Case | Viewport | Steps | Assertions |
+|---|-----------|----------|-------|------------|
+| 1 | Donation page loads with amount options | Desktop | Navigate to `/donate` | Preset amount buttons visible |
+| 2 | Custom amount input works | Desktop | Clear preset → type custom amount | Amount updates in summary |
+| 3 | Stripe checkout session opens | Desktop | Select $25 → click "Donate" | Redirected to Stripe checkout page |
+| 4 | Complete donation with test card | Desktop | Enter `4242 4242 4242 4242` → submit | Success page / receipt displayed |
+| 5 | Receipt download available | Desktop | After successful donation | "Download Receipt" button visible and clickable |
+| 6 | Donation appears in dashboard history | Desktop | Navigate to dashboard after donation | New transaction row appears |
+| 7 | Mobile donation flow | Mobile | Navigate to `/donate` → select amount | Stripe checkout opens correctly |
+
+> [!NOTE]
+> Uses Stripe test mode card `4242 4242 4242 4242` with any future expiry and CVC.
+
+---
+
+#### Suite P4: Subscription (Monthly Donation) Flow
+
+**File**: `e2e/public/04-subscription-flow.spec.js`
+
+| # | Test Case | Viewport | Steps | Assertions |
+|---|-----------|----------|-------|------------|
+| 1 | Monthly donation page loads | Desktop | Navigate to subscription page | Monthly amount options visible |
+| 2 | Subscribe with test card ($10/mo) | Desktop | Select $10 → enter card → submit | Subscription confirmation shown |
+| 3 | Update subscription amount ($85/mo) | Desktop | Go to settings → change amount | Confirmation email sent, amount updated |
+| 4 | Tier recalculates after update | Desktop | Check dashboard after amount change | Tier badge updates to match new amount |
+| 5 | Cancel subscription | Desktop | Go to settings → click cancel | Subscription status changes to "cancelled" |
+| 6 | Mobile subscription flow | Mobile | Navigate to subscription → select amount | Stripe checkout opens on mobile viewport |
+
+---
+
+#### Suite P5: User Settings
+
+**File**: `e2e/public/05-settings.spec.js`
+
+| # | Test Case | Viewport | Steps | Assertions |
+|---|-----------|----------|-------|------------|
+| 1 | Settings page loads | Desktop | Navigate to `/settings` | User profile form visible |
+| 2 | Update display name | Desktop | Change name → save | Success toast, name updates in header |
+| 3 | View current subscription details | Desktop | Navigate to subscription section | Amount, status, next billing date visible |
+| 4 | Download past receipts | Desktop | Click download on a transaction | PDF file downloads |
+| 5 | Mobile settings layout | Mobile | Navigate to `/settings` | Form fields stack vertically |
+
+---
+
+### E2E Test Suites — Admin CMS Flows
+
+---
+
+#### Suite A1: Admin Login
+
+**File**: `e2e/admin/01-admin-login.spec.js`
+
+| # | Test Case | Viewport | Steps | Assertions |
+|---|-----------|----------|-------|------------|
+| 1 | Admin login page loads | Desktop | Navigate to `/admin` | Email and password fields visible |
+| 2 | Login with valid credentials | Desktop | Enter admin email/password → submit | Redirected to admin dashboard |
+| 3 | Login with wrong password | Desktop | Enter wrong password → submit | Error message displayed |
+| 4 | Sidebar navigation renders | Desktop | After login | All sidebar menu items visible based on role |
+| 5 | Logout clears session | Desktop | Click logout | Redirected to login page |
+
+---
+
+#### Suite A2: CMS Projects CRUD
+
+**File**: `e2e/admin/02-projects-crud.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | View projects list | Navigate to Projects tab | Project cards/table renders |
+| 2 | Create new project | Click "Add" → fill form → save | New project appears in list |
+| 3 | Edit existing project | Click edit → modify title → save | Updated title visible |
+| 4 | Delete project | Click delete → confirm modal | Project removed from list |
+| 5 | Validation: empty title rejected | Submit form with empty title | Error message shown |
+
+---
+
+#### Suite A3: CMS Milestones CRUD
+
+**File**: `e2e/admin/03-milestones-crud.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | View milestones list | Navigate to Milestones tab | Milestone rows render |
+| 2 | Create milestone linked to project | Click "Add" → select project → fill fields → save | Milestone appears under project |
+| 3 | Edit milestone amount threshold | Click edit → change threshold → save | Updated value persists |
+| 4 | Delete milestone | Click delete → confirm | Milestone removed |
+| 5 | Track type toggle (One-time vs Monthly) | Create milestone with `isRecurring=true` | Badge shows "Monthly" |
+
+---
+
+#### Suite A4: CMS Tiers CRUD
+
+**File**: `e2e/admin/04-tiers-crud.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | View tiers list | Navigate to Tiers tab | Tier cards render with names and min amounts |
+| 2 | Create new auto-applied tier | Click "Add" → set `isAutoApplied=true` → save | Tier appears with "Auto" badge |
+| 3 | Create standalone manual tier | Set `isAutoApplied=false` → save | Tier appears with "Manual" badge |
+| 4 | Edit tier minimum amount | Click edit → change amount → save | Updated amount displays |
+| 5 | Delete tier | Click delete → confirm | Tier removed from list |
+| 6 | Perks chip input works | Add multiple perks via chip input | All perks display as chips |
+
+---
+
+#### Suite A5: Users/Donors Management
+
+**File**: `e2e/admin/05-users-management.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | View donors list | Navigate to Users tab | Donor table renders with names, emails, tiers |
+| 2 | Search/filter donors | Type in search field | Table filters to matching donors |
+| 3 | Add new admin user | Click "Add Admin" → fill form → submit | New admin appears in admin table |
+| 4 | Soft-delete donor (remove from lists) | Click delete → confirm | Donor no longer appears in active list |
+| 5 | Export donor list to Excel | Click "📊 Export list to Excel" | `.xlsx` file downloads |
+| 6 | Role assignment for admin users | Change role dropdown → save | Role updates and permissions change |
+
+---
+
+#### Suite A6: Transactions Ledger
+
+**File**: `e2e/admin/06-transactions-ledger.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | View transactions table | Navigate to Transactions tab | Table renders with columns: date, donor, amount, type |
+| 2 | Filter by date range | Set start/end dates | Table updates with filtered rows |
+| 3 | Filter by recurring/one-time | Toggle filter buttons | Only matching transaction types shown |
+| 4 | Export filtered results to Excel | Apply filter → click export | Downloaded file contains only filtered data |
+| 5 | Pagination works | Navigate to page 2 | Different transaction rows appear |
+
+---
+
+#### Suite A7: Communication Hub
+
+**File**: `e2e/admin/07-communication-hub.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | View email templates list | Navigate to Communications tab | Template cards render |
+| 2 | Create new email template | Click "New Template" → fill subject/body → save | Template appears in list |
+| 3 | Edit template with TipTap editor | Click edit → modify body → save | Content updates |
+| 4 | Create automation trigger rule | Click "Add Trigger" → select event + template → save | Trigger rule appears |
+| 5 | Send batch dispatch | Select template → select audience → dispatch | Success toast, dispatch log created |
+| 6 | View dispatch log recipients | Click dispatch log entry → view recipients | Recipient list renders with status |
+| 7 | Export dispatch recipients to CSV | Click export button | File downloads |
+| 8 | Delete template (blocked by trigger) | Try to delete template with active trigger | 409 error toast shown |
+| 9 | Delete trigger then template | Delete trigger → delete template | Both removed successfully |
+
+---
+
+#### Suite A8: Receipt Settings
+
+**File**: `e2e/admin/08-receipt-settings.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | View receipt template editor | Navigate to Receipt Settings | Editor loads with current template |
+| 2 | Edit receipt header/footer HTML | Modify header text → save | Updated content persists on reload |
+| 3 | Live preview renders variables | Click "Preview" | `{{donorName}}` replaced with sample data |
+| 4 | Download sample receipt PDF | Click "Download Sample" | PDF file downloads |
+
+---
+
+#### Suite A9: Notifications
+
+**File**: `e2e/admin/09-notifications.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | Notification bell shows unread count | After trigger event | Badge count > 0 on bell icon |
+| 2 | Open notification drawer | Click bell icon | Drawer slides in with notification list |
+| 3 | Mark all as read | Click "Mark all read" | Badge count resets to 0 |
+| 4 | Individual notification links to source | Click a notification item | Navigated to related page/entity |
+
+---
+
+#### Suite A10: RBAC Access Control
+
+**File**: `e2e/admin/10-rbac-access-control.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | SYSADMIN sees all sidebar items | Login as SYSADMIN | All CMS tabs visible |
+| 2 | ADMIN can manage most features | Login as ADMIN | Cannot manage other admins |
+| 3 | EDITOR can edit content only | Login as EDITOR | Projects/Content tabs visible, Users tab hidden |
+| 4 | VIEWER has read-only access | Login as VIEWER | Edit/Delete buttons disabled or hidden |
+| 5 | Direct URL access blocked for unauthorized roles | Login as VIEWER → navigate to `/admin/users` | Redirected or 403 shown |
+| 6 | API-level RBAC enforcement | VIEWER fetches `PUT /admin/content` | Returns 403 |
+
+> [!NOTE]
+> Requires pre-seeded admin accounts for each role: `SYSADMIN`, `ADMIN`, `EDITOR`, `VIEWER`.
+
+---
+
+#### Suite A11: Website Content Editing
+
+**File**: `e2e/admin/11-website-content.spec.js`
+
+| # | Test Case | Steps | Assertions |
+|---|-----------|-------|------------|
+| 1 | View content blocks list | Navigate to Website Content tab | Content keys displayed (hero, about, etc.) |
+| 2 | Edit hero section text | Click edit on hero → change text → save | Updated text persists |
+| 3 | Public site reflects content change | Edit admin content → visit public homepage | Updated hero text visible |
+| 4 | Markdown formatting renders correctly | Enter markdown in editor | Preview shows formatted HTML |
+
+---
+
+## Part 3: Test Database Strategy
+
+### Reset Mechanism
+
+```javascript
+// e2e/fixtures/resetDb.js
+// Before each full test run:
+// 1. Set DATABASE_URL=postgresql://omp_user:omp_dev_password@localhost:5432/omp_test
+// 2. Run `npx prisma migrate reset --force` to drop all tables, apply migrations, and run seeders
+// 3. Ensure test server process uses the same `omp_test` database connection string
+```
+
+### Seed Data Requirements
+
+| Entity | Details |
+|--------|---------|
+| Admin (SYSADMIN) | `admin@openmindprojects.org` / known password |
+| Admin (ADMIN) | `admin-test@omp.org` / known password |
+| Admin (EDITOR) | `editor-test@omp.org` / known password |
+| Admin (VIEWER) | `viewer-test@omp.org` / known password |
+| Test Donor | Created via Google OAuth during test |
+| Test Project | "E2E Test Project" with milestones |
+| Test Tiers | One auto-applied, one standalone manual |
+
+---
+
+## Part 4: CI/CD Pipeline
+
+### GitHub Actions Workflow
+
+#### Workflow 1: API Tests (on every push/PR)
+
+**File**: `.github/workflows/api-tests.yml`
+
+```yaml
+name: API Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: omp_user
+          POSTGRES_PASSWORD: omp_dev_password
+          POSTGRES_DB: omp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: cd server && npm ci
+      - run: cd server && npx prisma generate
+      - run: cd server && npx prisma db push
+      - run: cd server && node tests/run.js
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://omp_user:omp_dev_password@localhost:5432/omp_test
+          JWT_SECRET: test-secret
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+```
+
+#### Workflow 2: E2E Tests (nightly / on-demand)
+
+**File**: `.github/workflows/e2e-tests.yml`
+
+```yaml
+name: E2E Tests
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 2 AM UTC daily
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: omp_user
+          POSTGRES_PASSWORD: omp_dev_password
+          POSTGRES_DB: omp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: cd server && npm ci
+      - run: cd client && npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: cd server && npx prisma generate && npx prisma migrate reset --force
+        env:
+          DATABASE_URL: postgresql://omp_user:omp_dev_password@localhost:5432/omp_test
+      - run: cd server && node src/index.js &
+        env:
+          DATABASE_URL: postgresql://omp_user:omp_dev_password@localhost:5432/omp_test
+      - run: cd client && npm run dev &
+      - run: npx wait-on http://localhost:5173 http://localhost:3001/api/v1/health
+      - run: cd client && npx playwright test
+        env:
+          TEST_GOOGLE_EMAIL: ${{ secrets.TEST_GOOGLE_EMAIL }}
+          TEST_GOOGLE_PASSWORD: ${{ secrets.TEST_GOOGLE_PASSWORD }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+          DATABASE_URL: postgresql://omp_user:omp_dev_password@localhost:5432/omp_test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: client/playwright-report/
+```
+
+---
+
+## Part 5: Execution Summary
+
+### Total Test Count
+
+| Category | Suites | Approx. Test Cases |
+|----------|--------|--------------------|
+| Existing Backend API | 11 | ~85 |
+| **New** Backend API | 6 | ~32 |
+| **New** Playwright Public | 5 | ~30 |
+| **New** Playwright Admin | 11 | ~55 |
+| **New** PostgreSQL Integrations | 1 | ~10 |
+| **Total** | **34** | **~212** |
+
+### Estimated Execution Times
+
+| Runner | Estimated Duration |
+|--------|-------------------|
+| Backend API (`node tests/run.js`) | ~45 seconds |
+| Playwright Desktop | ~8–12 minutes |
+| Playwright Mobile | ~5–8 minutes |
+| **Full suite** | **~15–20 minutes** |
+
+---
+
+## Part 6: PostgreSQL-Specific Integration Tests
+
+**File**: `server/tests/integration/postgres.test.js`
+
+| # | Test Case | Method | Assertions |
+|---|-----------|--------|------------|
+| 1 | Concurrent Write Isolation | Database | Spawn 50 simultaneous transaction inserts; verify 50 unique rows without locks/errors |
+| 2 | PgBouncer Connection Pool | Database | Simulate 200 rapid connections; verify successful transactions via pooler (port 6432) |
+| 3 | Sequence Auto-increment Integrity | Database | Insert specific IDs, call `pg_get_serial_sequence`, ensure next insert does not conflict |
+| 4 | `to_char` Analytics Date Grouping | API | Validate `/admin/analytics/donations-chart` accurately groups timestamps using PostgreSQL functions |
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Test Gmail Account**: Do you already have a dedicated test Gmail account for Google OAuth E2E tests, or should we create one? The credentials will need to be stored as GitHub Actions secrets.
+
+> [!WARNING]
+> **Stripe Test Mode Keys**: The CI pipeline requires `STRIPE_TEST_SECRET_KEY` as a GitHub secret. Confirm the Stripe test mode keys are available for CI.
+
+> [!NOTE]
+> **Existing `client/src/tests/e2e/rbac.spec.js`**: This placeholder file will be superseded by the new `e2e/admin/10-rbac-access-control.spec.js`. The old file should be deleted during implementation.

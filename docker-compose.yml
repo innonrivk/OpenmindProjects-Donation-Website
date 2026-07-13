@@ -1,51 +1,86 @@
 services:
 
+  # ── PostgreSQL Database ───────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: omp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: omp_user
+      POSTGRES_PASSWORD: omp_dev_password
+      POSTGRES_DB: omp_database
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omp_user -d omp_database"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - omp-net
+
+  # ── PgBouncer Connection Pooler ───────────────────────────────────────────
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: omp-pgbouncer
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://omp_user:omp_dev_password@postgres:5432/omp_database
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "6432:6432"
+    networks:
+      - omp-net
+
   # ── Backend API ──────────────────────────────────────────────────────────────
   server:
+    image: innon15/omp-server:latest
     build:
       context: .
       dockerfile: Dockerfile.server
     container_name: omp-server
     restart: unless-stopped
     env_file:
-      # Mount your .env file at runtime — never bake secrets into the image.
-      - .env
+      - ./server/.env
     environment:
-      # Override DATABASE_URL to point at the shared volume path inside container.
-      DATABASE_URL: file:/data/dev.db
+      DATABASE_URL: postgres://omp_user:omp_dev_password@pgbouncer:6432/omp_database
       NODE_ENV: production
       PORT: 3001
-    volumes:
-      # Persist the SQLite database across container restarts.
-      # All Prisma migrations write to /data/dev.db inside the container.
-      - sqlite_data:/data
     ports:
-      # Expose the API port for direct debugging (optional — client proxies internally).
       - "3001:3001"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/v1/health"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 10s
+    depends_on:
+      pgbouncer:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     networks:
       - omp-net
 
   # ── Frontend (React + Nginx) ─────────────────────────────────────────────────
   client:
+    image: innon15/omp-client:latest
     build:
       context: .
       dockerfile: Dockerfile.client
       args:
-        # VITE_ vars are baked into the static bundle at build time.
-        # Set these in your shell or CI environment before running docker-compose.
         VITE_API_URL: /api/v1
         VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
     container_name: omp-client
     restart: unless-stopped
     ports:
-      # The app is accessible at http://localhost:80 (or just http://localhost)
       - "80:80"
     depends_on:
       server:
@@ -53,12 +88,10 @@ services:
     networks:
       - omp-net
 
-# ── Named volume for SQLite persistence ─────────────────────────────────────────
 volumes:
-  sqlite_data:
+  postgres_data:
     driver: local
 
-# ── Internal network so containers resolve each other by service name ─────────
 networks:
   omp-net:
     driver: bridge

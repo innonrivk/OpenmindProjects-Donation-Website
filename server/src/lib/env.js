@@ -15,7 +15,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * Importing this file first guarantees process.env is populated before subsequent
  * modules validate configuration parameters on boot.
  */
-dotenv.config({ path: resolve(__dirname, '../../../.env') });
+dotenv.config({ path: resolve(__dirname, '../../.env') });
 
 /**
  * Fail-fast secret validation for production deployments.
@@ -28,8 +28,6 @@ if (process.env.NODE_ENV === 'production') {
   const REQUIRED_SECRETS = [
     'JWT_SECRET',
     'ADMIN_JWT_SECRET',
-    'STRIPE_SECRET_KEY',
-    'STRIPE_WEBHOOK_SECRET',
   ];
 
   for (const key of REQUIRED_SECRETS) {

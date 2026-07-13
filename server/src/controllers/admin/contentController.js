@@ -1,5 +1,4 @@
 import prisma from '../../lib/prisma.js';
-import { clearContentCache } from '../public/contentController.js';
 import { z } from 'zod';
 import { ErrorCodes } from '../../lib/errors.js';
 
@@ -44,8 +43,7 @@ export const ContentUpdateSchema = z.object({
  * 
  * Batch upserts text records for all page fragments inside a single Prisma transaction.
  * 
- * Why transaction? SQLite forces single-writer locking. Wrapping all updates inside a single 
- * prisma.$transaction minimises database write time, drastically reducing SQLITE_BUSY locking risks.
+ * Why transaction? Ensures atomicity — all content blocks update together or none do.
  * Why SectionIdentifier mapping? Links key names dynamically to the correct SectionIdentifier enum
  * in the database without requiring database schema changes for individual copy fields.
  * 
@@ -84,9 +82,6 @@ export const updateContent = async (req, res, next) => {
         });
       })
     );
-
-    // Invalidate public endpoint caches immediately
-    clearContentCache();
 
     // Direct downstream clients to fetch fresh assets
     res.set('Cache-Control', 'public, max-age=0, must-revalidate');

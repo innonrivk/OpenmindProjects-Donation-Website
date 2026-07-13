@@ -87,37 +87,30 @@ if (useRedis) {
     worker = null;
   }
 }
-const fallbackQueue = [];
-let processingFallback = false;
+let activeJobs = 0;
 
-async function processFallbackQueue() {
-  if (processingFallback || fallbackQueue.length === 0) return;
-  processingFallback = true;
-
+async function processJob(job) {
+  activeJobs++;
   try {
-    while (fallbackQueue.length > 0) {
-      const job = fallbackQueue[0];
-      const { type, payload } = job;
-      if (type === 'DISPATCH_EMAIL') {
-        try {
-          await sendTemplatedEmail(payload.to, payload.template, payload.context);
-          await prisma.dispatchRecipient.updateMany({
-            where: { dispatchId: payload.logId, email: payload.to },
-            data: { status: 'SENT' },
-          });
-          await updateDispatchLogStatus(payload.logId);
-        } catch (err) {
-          await prisma.dispatchRecipient.updateMany({
-            where: { dispatchId: payload.logId, email: payload.to },
-            data: { status: 'FAILED', errorReason: err.message || 'SMTP dispatch failed' },
-          });
-          await updateDispatchLogStatus(payload.logId);
-        }
+    const { type, payload } = job;
+    if (type === 'DISPATCH_EMAIL') {
+      try {
+        await sendTemplatedEmail(payload.to, payload.template, payload.context);
+        await prisma.dispatchRecipient.updateMany({
+          where: { dispatchId: payload.logId, email: payload.to },
+          data: { status: 'SENT' },
+        });
+        await updateDispatchLogStatus(payload.logId);
+      } catch (err) {
+        await prisma.dispatchRecipient.updateMany({
+          where: { dispatchId: payload.logId, email: payload.to },
+          data: { status: 'FAILED', errorReason: err.message || 'SMTP dispatch failed' },
+        });
+        await updateDispatchLogStatus(payload.logId);
       }
-      fallbackQueue.shift(); // Remove job only after it is fully processed
     }
   } finally {
-    processingFallback = false;
+    activeJobs--;
   }
 }
 
@@ -131,9 +124,8 @@ export const communicationQueue = {
       }
     }
 
-    // Fallback: queue jobs sequentially to prevent SQLite database lock concurrency conflicts
-    fallbackQueue.push(data);
-    setImmediate(processFallbackQueue);
+    // PostgreSQL supports concurrent writes — process jobs in parallel
+    setImmediate(() => processJob(data));
   },
-  isEmpty: () => fallbackQueue.length === 0 && !processingFallback,
+  isEmpty: () => activeJobs === 0,
 };

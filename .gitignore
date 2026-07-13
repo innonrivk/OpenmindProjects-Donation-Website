@@ -4,7 +4,15 @@
 .env.development.local
 .env.test.local
 .env.production.local
+server/.env
+client/.env
 
+# Testing Outputs
+coverage/
+playwright-report/
+test-results/
+client/test-results/
+blob-report/
 # Dependency directories
 node_modules/
 
@@ -27,3 +35,4 @@ Thumbs.db
 Ehthumbs.db
 Desktop.ini
 .DS_Store
+node_modules

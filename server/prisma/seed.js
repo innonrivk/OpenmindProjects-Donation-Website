@@ -1,3 +1,4 @@
+import '../src/lib/env.js';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { seedHistoricalTransactions } from './seedTransactions.js';
@@ -414,7 +415,7 @@ async function main() {
       isRecurring: false,
     },
   });
-  console.log(`  ✅ Corrected ${updateResult.count} one-time transactions in SQLite ledger.`);
+  console.log(`  ✅ Corrected ${updateResult.count} one-time transactions in database ledger.`);
 
   // ── Auto-assign tiers based on donation sums ──
   console.log('🔄 Running tier auto-assignment for all seeded donors...');

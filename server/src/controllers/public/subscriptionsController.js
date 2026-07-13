@@ -314,7 +314,7 @@ export async function simulateRollover(req, res, next) {
     const scheduledAmt = user.scheduledAmount;
     const scheduledAmtCents = Math.round(scheduledAmt * 100);
 
-    // Execute rollover inside a SQLite-safe transaction
+    // Execute rollover inside an atomic transaction
     await prisma.$transaction(async (tx) => {
       // Create a new transaction record representing the rollover payment
       await tx.transaction.create({

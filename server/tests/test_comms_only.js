@@ -28,7 +28,7 @@ async function main() {
       ...process.env,
       PORT: TEST_PORT,
       NODE_ENV: 'test',
-      DATABASE_URL: 'file:./dev.db',
+      DATABASE_URL: process.env.TEST_DATABASE_URL || 'postgresql://omp_user:omp_dev_password@localhost:5432/omp_test',
       REDIS_URL: '',
     },
   });

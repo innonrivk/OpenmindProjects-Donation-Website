@@ -9,17 +9,15 @@ import { withEmailTrigger } from '../middleware/prismaEmailTrigger.js';
  * Every route that performs DB writes MUST import from this module so that
  * the email trigger fires consistently on every create operation.
  */
-const rawUrl = process.env.DATABASE_URL || 'file:./dev.db';
-const connectionLimit = process.env.CONNECTION_LIMIT || (process.env.NODE_ENV === 'test' ? '5' : '1');
-const safetyParams = `connection_limit=${connectionLimit}&socket_timeout=10&busy_timeout=8000`;
-const dbUrlWithConcurrencyConfig = rawUrl.includes('?') 
-  ? `${rawUrl}&${safetyParams}` 
-  : `${rawUrl}?${safetyParams}`;
+let dbUrl = process.env.DATABASE_URL || 'postgresql://omp_user:omp_dev_password@localhost:5432/omp_database';
+if (process.env.NODE_ENV === 'test' && dbUrl.includes('/omp_database')) {
+  dbUrl = dbUrl.replace('/omp_database', '/omp_test');
+}
 
 const basePrisma = withEmailTrigger(new PrismaClient({
   datasources: {
     db: {
-      url: dbUrlWithConcurrencyConfig,
+      url: dbUrl,
     },
   },
 }));
