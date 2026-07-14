@@ -281,9 +281,11 @@ export default function SettingsPage() {
 
               {pwStep === 'otp_sent' && (
                 <form onSubmit={handleChangePw} className="settings-form">
+                  {/* Hidden username field to satisfy browser password managers */}
+                  <input type="text" autoComplete="username" value={user?.email || ''} style={{ display: 'none' }} readOnly />
                   <div className="auth-form__field">
                     <label htmlFor="pw-otp">Verification Code</label>
-                    <input id="pw-otp" type="text" value={pwOtp} onChange={e => setPwOtp(e.target.value)} maxLength={6} placeholder="6-digit code" required />
+                    <input id="pw-otp" type="text" value={pwOtp} onChange={e => setPwOtp(e.target.value)} maxLength={6} placeholder="6-digit code" autoComplete="one-time-code" required />
                   </div>
                   <div className="auth-form__field">
                     <label htmlFor="pw-new">New Password</label>
