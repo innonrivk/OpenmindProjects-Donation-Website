@@ -222,6 +222,7 @@ export default function AdminSettingsPage() {
                         value={pwNew}
                         onChange={(e) => setPwNew(e.target.value)}
                         placeholder="Min 8 characters"
+                        autoComplete="new-password"
                         required
                       />
                     </div>
@@ -234,6 +235,7 @@ export default function AdminSettingsPage() {
                         value={pwConfirm}
                         onChange={(e) => setPwConfirm(e.target.value)}
                         placeholder="Repeat new password"
+                        autoComplete="new-password"
                         required
                       />
                     </div>

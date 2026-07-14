@@ -287,11 +287,11 @@ export default function SettingsPage() {
                   </div>
                   <div className="auth-form__field">
                     <label htmlFor="pw-new">New Password</label>
-                    <input id="pw-new" type="password" value={pwNew} onChange={e => setPwNew(e.target.value)} minLength={8} placeholder="At least 8 characters" required />
+                    <input id="pw-new" type="password" value={pwNew} onChange={e => setPwNew(e.target.value)} minLength={8} placeholder="At least 8 characters" autoComplete="new-password" required />
                   </div>
                   <div className="auth-form__field">
                     <label htmlFor="pw-confirm">Confirm New Password</label>
-                    <input id="pw-confirm" type="password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)} minLength={8} placeholder="Repeat password" required />
+                    <input id="pw-confirm" type="password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)} minLength={8} placeholder="Repeat password" autoComplete="new-password" required />
                   </div>
                   {pwMsg.text && <p className={`dash-msg dash-msg--${pwMsg.type}`}>{pwMsg.text}</p>}
                   <button type="submit" className="settings-btn" disabled={pwLoading}>
