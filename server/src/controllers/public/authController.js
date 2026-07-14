@@ -236,7 +236,7 @@ export async function getMe(req, res, next) {
     // Consolidate both total computations into a single database query
     const aggregates = await prisma.transaction.groupBy({
       by: ['isRecurring'],
-      where: { userId: req.user.userId, status: 'SUCCEEDED' },
+      where: { userId: decoded.userId, status: 'SUCCEEDED' },
       _sum: { amount: true },
     });
 
