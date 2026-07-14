@@ -13,7 +13,7 @@ COPY client/ .
 
 # The Vite build reads VITE_* env vars at BUILD TIME.
 # Pass them as build args so they get baked into the static bundle.
-ARG VITE_API_URL=/api/v1
+ARG VITE_API_URL=https://ompdonation-donation-back.ra1zsf.easypanel.host/api/v1
 
 # VITE_STRIPE_PUBLISHABLE_KEY is Stripe's *public* client-side key (pk_test_ / pk_live_).
 # It is intentionally embedded in the browser bundle — this is required and documented by Stripe.

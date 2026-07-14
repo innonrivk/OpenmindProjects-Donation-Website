@@ -75,7 +75,7 @@ services:
       context: .
       dockerfile: Dockerfile.client
       args:
-        VITE_API_URL: /api/v1
+        VITE_API_URL: https://ompdonation-donation-back.ra1zsf.easypanel.host/api/v1
     container_name: omp-client
     restart: unless-stopped
     ports:
