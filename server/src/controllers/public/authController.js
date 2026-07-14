@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { OAuth2Client } from 'google-auth-library';
@@ -206,8 +207,21 @@ export function logout(req, res) {
  */
 export async function getMe(req, res, next) {
   try {
+    const token = req.cookies?.token;
+    if (!token) {
+      return res.status(200).json({ status: 'NO_SESSION' });
+    }
+
+    let decoded;
+    try {
+      const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production';
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      return res.status(200).json({ status: 'NO_SESSION' });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: decoded.userId },
       include: {
         transactions: { orderBy: { createdAt: 'desc' }, take: 50 },
         claimedMilestones: { include: { milestone: true } },

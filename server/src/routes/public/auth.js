@@ -29,7 +29,7 @@ router.post('/verify-otp', verifyOtp);
 router.post('/login', login);
 router.post('/google', googleLogin);
 router.post('/logout', logout);
-router.get('/me', requireAuth, getMe);
+router.get('/me', getMe);
 
 // Settings & profile management
 router.post('/settings/password-otp', requireAuth, requestPasswordOtp);

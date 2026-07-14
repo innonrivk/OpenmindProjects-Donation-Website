@@ -13,6 +13,9 @@ export function AuthProvider({ children }) {
   const refreshUser = useCallback(async () => {
     try {
       const data = await api.getMe();
+      if (data.status === 'NO_SESSION') {
+        throw new Error('No session');
+      }
       setUser(data.user);
       setProfileData(data);
       setIsAuthenticated(true);
@@ -28,6 +31,9 @@ export function AuthProvider({ children }) {
     async function checkAuth() {
       try {
         const data = await api.getMe();
+        if (data.status === 'NO_SESSION') {
+          throw new Error('No session');
+        }
         setUser(data.user);
         setProfileData(data);
         setIsAuthenticated(true);

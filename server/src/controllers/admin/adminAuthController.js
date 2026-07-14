@@ -100,7 +100,8 @@ export async function adminRefresh(req, res, next) {
   try {
     const refreshToken = req.cookies.adminRefreshToken;
     if (!refreshToken) {
-      return res.status(401).json({
+      return res.status(200).json({
+        status: 'NO_SESSION',
         error: ErrorCodes.NOT_AUTHENTICATED,
         message: 'Refresh token cookie is missing.',
       });
@@ -110,7 +111,8 @@ export async function adminRefresh(req, res, next) {
     try {
       decoded = jwt.verify(refreshToken, ADMIN_JWT_SECRET);
     } catch (err) {
-      return res.status(401).json({
+      return res.status(200).json({
+        status: 'NO_SESSION',
         error: ErrorCodes.INVALID_TOKEN,
         message: 'Invalid or expired refresh token.',
       });

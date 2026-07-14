@@ -32,6 +32,9 @@ export function AdminAuthProvider({ children }) {
   const silentRefresh = useCallback(async () => {
     try {
       const { data } = await adminApi.post('/auth/refresh');
+      if (data.status === 'NO_SESSION') {
+        throw new Error('No session');
+      }
       setToken(data.accessToken);
       setIsAuthenticated(true);
       return data.accessToken;
