@@ -1,4 +1,4 @@
-const API_BASE = '/api/v1/public';
+const API_BASE = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL + '/public' : '/api/v1/public';
 
 /**
  * Fetch wrapper with structured error handling.
