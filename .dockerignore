@@ -36,3 +36,8 @@ Thumbs.db
 
 # ── Test files — not needed in production images ──
 server/tests/
+client/e2e/
+playwright-report/
+test-results/
+blob-report/
+playwright.config.*
