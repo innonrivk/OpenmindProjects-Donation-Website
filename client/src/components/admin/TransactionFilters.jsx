@@ -65,6 +65,7 @@ export default function TransactionFilters({
 
         <select
           id="tx-filter-mode"
+          data-testid="tx-date-range-select"
           className="tx-filters__select"
           value={filterMode}
           onChange={(e) => onModeChange(e.target.value)}
@@ -84,6 +85,7 @@ export default function TransactionFilters({
         {/* Adjacent to date select — flex row handles alignment automatically */}
         <select
           id="tx-donation-type"
+          data-testid="tx-donation-type-select"
           className="tx-filters__select"
           value={donationType}
           onChange={(e) => onDonationTypeChange(e.target.value)}

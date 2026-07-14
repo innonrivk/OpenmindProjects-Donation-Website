@@ -130,7 +130,7 @@ export default function CMSTiers() {
       <div className="cms-section__header">
         <h2>Donation Tiers & Benefits</h2>
         {!isFormOpen && (
-          <button onClick={() => openForm()} className="cms-btn cms-btn--primary">
+          <button data-testid="add-tier-btn" onClick={() => openForm()} className="cms-btn cms-btn--primary">
             + Add New Tier
           </button>
         )}
@@ -147,7 +147,7 @@ export default function CMSTiers() {
               <div className="cms-form__grid">
                 <div className="cms-form__field">
                   <label>Tier Name</label>
-                  <input {...register('name')} placeholder="e.g. Regular, Shareholder" />
+                  <input data-testid="tier-name-input" {...register('name')} placeholder="e.g. Regular, Shareholder" />
                   {errors.name && <span className="field-error">{errors.name.message}</span>}
                 </div>
 
@@ -177,11 +177,13 @@ export default function CMSTiers() {
 
               <div className="cms-form__field" style={{ marginTop: '16px' }}>
                 <label>Tier Perks List (Chips)</label>
-                <PerkChipInput
-                  value={perks}
-                  onChange={setPerks}
-                  placeholder="Type a perk and press Enter..."
-                />
+                <div data-testid="perk-chip-input">
+                  <PerkChipInput
+                    value={perks}
+                    onChange={setPerks}
+                    placeholder="Type a perk and press Enter..."
+                  />
+                </div>
               </div>
             </div>
 

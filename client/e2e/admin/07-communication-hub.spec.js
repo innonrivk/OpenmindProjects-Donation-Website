@@ -7,11 +7,8 @@ test.describe('Admin Communications Hub', () => {
     // Assert communications page layouts render correctly
     await expect(adminPage.locator('.cms-section')).toBeVisible();
 
-    // Verify template creation forms can be loaded
-    const createBtn = adminPage.locator('button:has-text("Template"), button:has-text("Add")');
-    if (await createBtn.isVisible()) {
-      await createBtn.click();
-      await expect(adminPage.locator('input[name="subject"], .tiptap-editor')).toBeVisible();
-    }
+    // Verify template creation forms can be loaded (form is inline)
+    await expect(adminPage.locator('[data-testid="template-name-input"]')).toBeVisible();
+    await expect(adminPage.locator('.tiptap-editor-container')).toBeVisible();
   });
 });

@@ -11,10 +11,10 @@ test.describe('Admin Projects CRUD', () => {
     await expect(adminPage.locator('.cms-section')).toBeVisible();
 
     // Look for add/create button and modal triggers
-    const addBtn = adminPage.locator('button:has-text("Add"), button:has-text("Create"), .add-project-btn');
+    const addBtn = adminPage.locator('[data-testid="add-project-btn"]');
     if (await addBtn.isVisible()) {
       await addBtn.click();
-      await expect(adminPage.locator('input[name="title"], input[name="name"]')).toBeVisible();
+      await expect(adminPage.locator('[data-testid="project-name-input"]')).toBeVisible();
     }
   });
 });

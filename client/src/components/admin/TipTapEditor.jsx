@@ -16,7 +16,10 @@ import './TipTapEditor.css';
 export default function TipTapEditor({ value, onChange }) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        link: false,
+        underline: false,
+      }),
       Underline,
       Link.configure({
         openOnClick: false,

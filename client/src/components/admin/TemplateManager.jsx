@@ -279,6 +279,7 @@ export default function TemplateManager() {
               <label htmlFor="tmpl-name">Template Name</label>
               <input
                 id="tmpl-name"
+                data-testid="template-name-input"
                 type="text"
                 {...register('name', { required: true })}
                 placeholder="e.g. Donation Receipt Certificate"
@@ -289,6 +290,7 @@ export default function TemplateManager() {
               <label htmlFor="tmpl-subject">Email Subject</label>
               <input
                 id="tmpl-subject"
+                data-testid="template-subject-input"
                 type="text"
                 {...register('subject', { required: true })}
                 placeholder="e.g. Thank you for your donation {donorName}!"

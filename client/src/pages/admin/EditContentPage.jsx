@@ -282,8 +282,12 @@ export default function EditContentPage() {
     setSaving(true);
     setAlert(null);
 
+    const cleanedData = Object.fromEntries(
+      Object.entries(data).filter(([_, value]) => value !== '')
+    );
+
     try {
-      await adminApi.put('/content/site-text', data);
+      await adminApi.put('/content/site-text', cleanedData);
       
       // Reset dirty state to current values
       reset(data);

@@ -6,13 +6,14 @@ test.describe('Admin Donors and Users Management', () => {
 
     // Assert active administrators lists are rendered
     await expect(adminPage.locator('.cms-section')).toBeVisible();
+    await expect(adminPage.locator('table.cms-table')).toBeVisible();
+
+    // Click Donor Tiers tab
+    const donorsTabBtn = adminPage.locator('[data-testid="users-donors-tab"]');
+    await donorsTabBtn.click();
 
     // Verify search / filter inputs exist
-    const searchInput = adminPage.locator('input[placeholder*="Search"], .search-input');
-    await expect(searchInput.first()).toBeVisible();
-
-    // Verify Excel export button is present
-    const exportBtn = adminPage.locator('button:has-text("Export"), .export-btn');
-    await expect(exportBtn.first()).toBeVisible();
+    const searchInput = adminPage.locator('[data-testid="donor-search-input"]');
+    await expect(searchInput).toBeVisible();
   });
 });

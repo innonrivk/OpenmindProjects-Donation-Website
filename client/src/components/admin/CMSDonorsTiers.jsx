@@ -134,6 +134,7 @@ export default function CMSDonorsTiers() {
       <div style={{ marginBottom: '16px' }}>
         <input
           type="text"
+          data-testid="donor-search-input"
           placeholder="Search donors by name or email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}

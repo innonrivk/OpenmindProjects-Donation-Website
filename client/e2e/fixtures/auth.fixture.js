@@ -31,6 +31,15 @@ export const test = base.extend({
       },
     ]);
 
+    page.on('console', msg => {
+      if (msg.type() === 'error' || msg.type() === 'warning') {
+        console.log(`[Browser ${msg.type().toUpperCase()}]: ${msg.text()}`);
+      }
+    });
+    page.on('pageerror', exception => {
+      console.log(`[Browser UNCAUGHT EXCEPTION]: ${exception}`);
+    });
+
     await page.goto('/admin/dashboard');
     await use(page);
   },

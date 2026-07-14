@@ -8,7 +8,7 @@ import { ErrorCodes } from '../../lib/errors.js';
  * Why strict keys? Prevents accidental database pollution with arbitrary keys,
  * ensuring only valid page fragments can be upserted.
  */
-export const ContentUpdateSchema = z.object({
+export const BaseContentUpdateSchema = z.object({
   welcome_headline: z.string().min(1, 'Welcome headline is required'),
   welcome_subheadline: z.string().min(1, 'Welcome subheadline is required'),
   welcome_hero_intro: z.string().min(1, 'Welcome hero intro is required'),
@@ -37,6 +37,8 @@ export const ContentUpdateSchema = z.object({
   footer_brand_desc: z.string().min(1, 'Footer brand description is required'),
   footer_tagline: z.string().min(1, 'Footer tagline is required'),
 });
+
+export const ContentUpdateSchema = BaseContentUpdateSchema.partial();
 
 /**
  * PUT /api/v1/admin/content/site-text

@@ -112,7 +112,7 @@ export default function CMSProjects() {
       <div className="cms-section__header">
         <h2>Active Projects Directory</h2>
         {!isFormOpen && (
-          <button onClick={() => openForm()} className="cms-btn cms-btn--primary">
+          <button data-testid="add-project-btn" onClick={() => openForm()} className="cms-btn cms-btn--primary">
             + Add Project
           </button>
         )}
@@ -129,7 +129,7 @@ export default function CMSProjects() {
               <div className="cms-form__grid">
                 <div className="cms-form__field">
                   <label>Project Name / Title</label>
-                  <input {...register('projectName')} placeholder="e.g. Clean Water Initiative" />
+                  <input data-testid="project-name-input" {...register('projectName')} placeholder="e.g. Clean Water Initiative" />
                   {errors.projectName && <span className="field-error">{errors.projectName.message}</span>}
                 </div>
 

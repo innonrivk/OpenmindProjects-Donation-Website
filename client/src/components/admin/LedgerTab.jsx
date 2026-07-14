@@ -350,6 +350,7 @@ export default function LedgerTab({
           </h3>
           <button
             type="button"
+            data-testid="export-excel-btn"
             className="cms-btn cms-btn--secondary"
             onClick={handleExportExcel}
             disabled={isExporting}

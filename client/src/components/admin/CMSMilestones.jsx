@@ -99,7 +99,7 @@ export default function CMSMilestones() {
       <div className="cms-section__header">
         <h2>Donation Milestones & Roadmap</h2>
         {!isFormOpen && (
-          <button onClick={() => openForm()} className="cms-btn cms-btn--primary">
+          <button data-testid="add-milestone-btn" onClick={() => openForm()} className="cms-btn cms-btn--primary">
             + Add Milestone
           </button>
         )}
@@ -116,7 +116,7 @@ export default function CMSMilestones() {
               <div className="cms-form__grid">
                 <div className="cms-form__field">
                   <label>Milestone Name / Label</label>
-                  <input {...register('label')} placeholder="e.g. Silver Friend" />
+                  <input data-testid="milestone-label-input" {...register('label')} placeholder="e.g. Silver Friend" />
                   {errors.label && <span className="field-error">{errors.label.message}</span>}
                 </div>
 

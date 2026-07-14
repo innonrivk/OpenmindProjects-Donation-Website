@@ -130,6 +130,7 @@ export default function CMSUsers() {
       >
         <button
           type="button"
+          data-testid="users-admins-tab"
           onClick={() => setActiveTab('ADMINS')}
           style={{
             background: 'none',
@@ -147,6 +148,7 @@ export default function CMSUsers() {
         </button>
         <button
           type="button"
+          data-testid="users-donors-tab"
           onClick={() => setActiveTab('DONORS')}
           style={{
             background: 'none',

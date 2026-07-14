@@ -8,11 +8,11 @@ test.describe('Admin Transactions Ledger', () => {
     await expect(adminPage.locator('.cms-section')).toBeVisible();
 
     // Verify date range inputs exist
-    const startDateInput = adminPage.locator('input[type="date"], .start-date-picker');
-    await expect(startDateInput.first()).toBeVisible();
+    const dateRangeSelect = adminPage.locator('[data-testid="tx-date-range-select"]');
+    await expect(dateRangeSelect.first()).toBeVisible();
 
     // Verify type filter elements exist
-    const typeFilter = adminPage.locator('.type-filter, select[name="type"]');
+    const typeFilter = adminPage.locator('[data-testid="tx-donation-type-select"]');
     await expect(typeFilter.first()).toBeVisible();
   });
 });

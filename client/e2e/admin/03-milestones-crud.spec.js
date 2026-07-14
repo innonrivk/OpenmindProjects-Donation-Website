@@ -8,10 +8,10 @@ test.describe('Admin Milestones CRUD', () => {
     await expect(adminPage.locator('.cms-section')).toBeVisible();
 
     // Verify trigger toggling is repeatable
-    const addBtn = adminPage.locator('button:has-text("Add"), button:has-text("Create")');
+    const addBtn = adminPage.locator('[data-testid="add-milestone-btn"]');
     if (await addBtn.isVisible()) {
       await addBtn.click();
-      await expect(adminPage.locator('select[name="projectId"], select[name="project"]')).toBeVisible();
+      await expect(adminPage.locator('[data-testid="milestone-label-input"]')).toBeVisible();
     }
   });
 });

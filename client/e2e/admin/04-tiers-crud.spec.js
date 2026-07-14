@@ -8,10 +8,10 @@ test.describe('Admin Donation Tiers CRUD', () => {
     await expect(adminPage.locator('.cms-section')).toBeVisible();
 
     // Verify chip perk inputs are present
-    const addBtn = adminPage.locator('button:has-text("Add"), button:has-text("Create")');
+    const addBtn = adminPage.locator('[data-testid="add-tier-btn"]');
     if (await addBtn.isVisible()) {
       await addBtn.click();
-      await expect(adminPage.locator('.perks-input, input[name="perk"], input[name="perks"]')).toBeVisible();
+      await expect(adminPage.locator('[data-testid="tier-name-input"]')).toBeVisible();
     }
   });
 });
