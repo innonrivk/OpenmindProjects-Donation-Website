@@ -291,6 +291,15 @@ export default function EditContentPage() {
     try {
       await adminApi.put('/content/site-text', cleanedData);
       
+      // Update local storage and trigger cross-component update
+      try {
+        const { data: freshData } = await publicApi.get('/content/site-text');
+        localStorage.setItem('site_content', JSON.stringify(freshData));
+        window.dispatchEvent(new Event('content_updated'));
+      } catch (e) {
+        console.error('Failed to broadcast content update:', e);
+      }
+      
       // Reset dirty state to current values
       reset(data);
       

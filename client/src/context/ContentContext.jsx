@@ -57,11 +57,8 @@ export const ContentProvider = ({ children }) => {
         const { data } = await publicApi.get('/content/site-text');
         localStorage.setItem('site_content', JSON.stringify(data));
         
-        // If we didn't have any cached content (first visit), we set it now to unblock rendering
-        setContent((prev) => {
-          if (!prev) return data;
-          return prev; // Retain cached version for the rest of this session to prevent shifting
-        });
+        // Update the context so the new text is rendered immediately (True Stale-While-Revalidate)
+        setContent(data);
       } catch (error) {
         console.error('Failed to sync dynamic site content:', error);
       } finally {
@@ -70,6 +67,27 @@ export const ContentProvider = ({ children }) => {
     };
 
     fetchContent();
+
+    /**
+     * Listen for manual updates from the Admin panel to sync changes instantly 
+     * across the application without requiring a hard refresh.
+     */
+    const handleContentUpdated = () => {
+      try {
+        const cached = localStorage.getItem('site_content');
+        if (cached) {
+          setContent(JSON.parse(cached));
+        }
+      } catch (e) {
+        console.error('Error parsing updated content from localStorage', e);
+      }
+    };
+
+    window.addEventListener('content_updated', handleContentUpdated);
+    
+    return () => {
+      window.removeEventListener('content_updated', handleContentUpdated);
+    };
   }, []);
 
   if (loading && !content) {
