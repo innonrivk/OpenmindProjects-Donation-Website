@@ -283,7 +283,9 @@ export default function EditContentPage() {
     setAlert(null);
 
     const cleanedData = Object.fromEntries(
-      Object.entries(data).filter(([_, value]) => value !== '')
+      Object.entries(data).filter(
+        ([_, value]) => typeof value === 'string' && value.trim() !== ''
+      )
     );
 
     try {

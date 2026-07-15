@@ -99,6 +99,64 @@ test('Integration: Website Content & Donation Box CRUD API', async (t) => {
     assert.strictEqual(publicData.welcome_headline, 'New welcome headline');
   });
 
+  await t.test('PUT /admin/content/site-text - partial update site text successfully', async () => {
+    const payload = {
+      welcome_headline: 'Partial welcome headline',
+    };
+
+    const res = await fetch(`${BASE_URL}/admin/content/site-text`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${contentAdminToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+  });
+
+  await t.test('PUT /admin/content/site-text - strips empty strings from payload (bug fix)', async () => {
+    const payload = {
+      welcome_headline: 'Valid headline',
+      welcome_subheadline: 'Valid subheadline',
+      welcome_hero_intro: 'Valid intro paragraph',
+      projects_label: '',
+      projects_title: '',
+      projects_intro: '',
+      boxes_label: '',
+      boxes_title: '',
+      boxes_cta: '',
+      tiers_label: '',
+      tiers_title: '',
+      tiers_intro: '',
+      roadmap_label: '',
+      roadmap_title: '',
+      roadmap_intro: '',
+      impact_label: '',
+      impact_title: '',
+      impact_intro: '',
+      footer_brand_name: '',
+      footer_brand_desc: '',
+      footer_tagline: '',
+    };
+
+    const res = await fetch(`${BASE_URL}/admin/content/site-text`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${contentAdminToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    assert.strictEqual(res.status, 200, `Expected 200 but got ${res.status}: ${JSON.stringify(await res.clone().json())}`);
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+  });
+
   await t.test('POST /admin/content - creates WebsiteContent', async () => {
     const res = await fetch(`${BASE_URL}/admin/content`, {
       method: 'POST',

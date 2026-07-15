@@ -3,6 +3,22 @@ import { z } from 'zod';
 import { ErrorCodes } from '../../lib/errors.js';
 
 /**
+ * Whitelist of valid site-text keys.
+ * 
+ * Why a whitelist? Prevents database pollution with arbitrary keys and
+ * provides a single source of truth for the preprocess sanitizer.
+ */
+const VALID_KEYS = [
+  'welcome_headline', 'welcome_subheadline', 'welcome_hero_intro',
+  'projects_label', 'projects_title', 'projects_intro',
+  'boxes_label', 'boxes_title', 'boxes_cta',
+  'tiers_label', 'tiers_title', 'tiers_intro',
+  'roadmap_label', 'roadmap_title', 'roadmap_intro',
+  'impact_label', 'impact_title', 'impact_intro',
+  'footer_brand_name', 'footer_brand_desc', 'footer_tagline',
+];
+
+/**
  * Strict Zod validation schema for site copy updates.
  * 
  * Why strict keys? Prevents accidental database pollution with arbitrary keys,
@@ -38,16 +54,50 @@ export const BaseContentUpdateSchema = z.object({
   footer_tagline: z.string().min(1, 'Footer tagline is required'),
 });
 
-export const ContentUpdateSchema = BaseContentUpdateSchema.partial();
+/**
+ * Preprocessed partial schema that strips empty strings and unknown keys
+ * BEFORE Zod validation runs.
+ * 
+ * Why preprocess? The frontend sends ALL 21 form keys on every save,
+ * including empty strings for tabs the user never edited. Zod .partial()
+ * marks fields as optional (allows undefined/absent), but still rejects
+ * present-but-empty strings via .min(1). Preprocess converts empty strings
+ * to undefined so .partial() treats them as absent.
+ */
+export const ContentUpdateSchema = z.preprocess((raw) => {
+  if (!raw || typeof raw !== 'object') return {};
+  const validSet = new Set(VALID_KEYS);
+  return Object.fromEntries(
+    Object.entries(raw).filter(
+      ([key, value]) => validSet.has(key) && typeof value === 'string' && value.trim() !== ''
+    )
+  );
+}, BaseContentUpdateSchema.partial());
+
+/**
+ * Maps a site-text key prefix to the corresponding SectionIdentifier enum value.
+ * 
+ * @param {string} key - The site-text key (e.g. 'projects_label')
+ * @returns {string} The SectionIdentifier enum value
+ */
+function resolveSectionFromKey(key) {
+  if (key.startsWith('projects_')) return 'ACTIVE_PROJECTS';
+  if (key.startsWith('boxes_')) return 'DONATION_BOXES';
+  if (key.startsWith('tiers_')) return 'DONATION_TIERS';
+  if (key.startsWith('roadmap_')) return 'DONATION_ROADMAP';
+  if (key.startsWith('impact_')) return 'TANGIBLE_IMPACT';
+  if (key.startsWith('footer_')) return 'FOOTER';
+  return 'WELCOME';
+}
 
 /**
  * PUT /api/v1/admin/content/site-text
  * 
- * Batch upserts text records for all page fragments inside a single Prisma transaction.
+ * Batch upserts text records for all page fragments inside a single
+ * Prisma transaction.
  * 
- * Why transaction? Ensures atomicity — all content blocks update together or none do.
- * Why SectionIdentifier mapping? Links key names dynamically to the correct SectionIdentifier enum
- * in the database without requiring database schema changes for individual copy fields.
+ * Why transaction? Ensures atomicity — all content blocks update
+ * together or none do.
  * 
  * @param {import('express').Request} req - Express request object
  * @param {import('express').Response} res - Express response object
@@ -66,23 +116,21 @@ export const updateContent = async (req, res, next) => {
 
     const updates = parsed.data;
 
-    await prisma.$transaction(
-      Object.entries(updates).map(([key, value]) => {
-        let section = 'WELCOME';
-        if (key.startsWith('welcome_')) section = 'WELCOME';
-        else if (key.startsWith('projects_')) section = 'ACTIVE_PROJECTS';
-        else if (key.startsWith('boxes_')) section = 'DONATION_BOXES';
-        else if (key.startsWith('tiers_')) section = 'DONATION_TIERS';
-        else if (key.startsWith('roadmap_')) section = 'DONATION_ROADMAP';
-        else if (key.startsWith('impact_')) section = 'TANGIBLE_IMPACT';
-        else if (key.startsWith('footer_')) section = 'FOOTER';
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        error: ErrorCodes.VALIDATION_ERROR,
+        message: 'No valid content fields provided.',
+      });
+    }
 
-        return prisma.siteText.upsert({
+    await prisma.$transaction(
+      Object.entries(updates).map(([key, value]) =>
+        prisma.siteText.upsert({
           where: { key },
           update: { value },
-          create: { key, value, section },
-        });
-      })
+          create: { key, value, section: resolveSectionFromKey(key) },
+        })
+      )
     );
 
     // Direct downstream clients to fetch fresh assets
