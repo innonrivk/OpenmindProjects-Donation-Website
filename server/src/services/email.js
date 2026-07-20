@@ -16,7 +16,7 @@ const smtpPort = process.env.SMTP_PORT;
 const smtpUser = process.env.SMTP_USER;
 const smtpFrom = process.env.SMTP_FROM || smtpUser;
 
-if (!smtpHost || !smtpPort || !smtpUser) {
+if (process.env.NODE_ENV !== 'test' && (!smtpHost || !smtpPort || !smtpUser)) {
   throw new Error(
     'CRITICAL: Google Workspace SMTP is not configured correctly. ' +
     'Please set SMTP_HOST, SMTP_PORT, and SMTP_USER in your root .env file.'
