@@ -255,7 +255,9 @@ function parseTextRecursive(text) {
 export function formatContent(text) {
   if (!text) return '';
 
-  const paragraphs = text.split('\n\n');
+  // Replace literal '\n' string typed by users with actual newline characters
+  const processedText = text.replace(/\\n/g, '\n');
+  const paragraphs = processedText.split('\n\n');
 
   return paragraphs.map((para, paraIdx) => {
     const lines = para.split('\n');

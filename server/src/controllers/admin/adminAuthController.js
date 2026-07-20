@@ -149,11 +149,13 @@ export function adminLogout(req, res) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
   });
   res.clearCookie('token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
   });
   return res.status(200).json({
     status: 'LOGGED_OUT',
@@ -233,6 +235,7 @@ export async function upgradeSession(req, res, next) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
     });
 
     return res.status(200).json({

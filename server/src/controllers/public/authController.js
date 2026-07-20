@@ -186,11 +186,13 @@ export function logout(req, res) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
   });
   res.clearCookie('adminRefreshToken', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
   });
   return res.status(200).json({ status: 'LOGGED_OUT', message: 'Logged out successfully.' });
 }
