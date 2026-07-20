@@ -76,7 +76,7 @@ services:
       dockerfile: Dockerfile.client
       args:
         VITE_API_URL: https://ompdonation-donation-back.ra1zsf.easypanel.host/api/v1
-        VITE_GOOGLE_CLIENT_ID: 205483244176-kmvmn335idvsdqjrnbafcu80kin5gr15.apps.googleusercontent.com
+        VITE_GOOGLE_CLIENT_ID: 776372000296-9a7ccid6hbkva28a2v11si2aikg7hg6t.apps.googleusercontent.com
     container_name: omp-client
     restart: unless-stopped
     ports:
