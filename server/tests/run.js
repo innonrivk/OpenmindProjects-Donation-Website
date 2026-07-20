@@ -1,6 +1,7 @@
 import { spawn, execSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { execPath } from 'process';
 import dotenv from 'dotenv';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -29,7 +30,7 @@ async function waitUrl(url, timeoutMs = 8000) {
 function runSuite(suiteName, filePath, databaseUrl) {
   return new Promise((resolvePromise) => {
     console.log(`\n🏃 Running Suite: ${suiteName} (${filePath})`);
-    const child = spawn('node', ['--test', filePath], {
+    const child = spawn(execPath, ['--test', filePath], {
       stdio: 'inherit',
       cwd: serverDir,
       env: {
@@ -80,7 +81,7 @@ async function main() {
 
   // 1. Spawn the backend server on a test port
   console.log(`🚀 Starting test server on port ${TEST_PORT}...`);
-  const server = spawn('node', [serverPath], {
+  const server = spawn(execPath, [serverPath], {
     cwd: serverDir,
     env: {
       ...process.env,

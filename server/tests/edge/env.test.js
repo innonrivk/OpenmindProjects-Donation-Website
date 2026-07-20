@@ -4,6 +4,7 @@ import assert from 'node:assert';
 import { spawn } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { execPath } from 'process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const envScriptPath = resolve(__dirname, '../../src/lib/env.js');
@@ -12,7 +13,7 @@ const emailScriptPath = resolve(__dirname, '../../src/services/email.js');
 test('Env Dependency Verification', async (t) => {
   await t.test('Fails to start in production if JWT_SECRET is missing', (t, done) => {
     // Pass empty strings so dotenv does not load values from the root .env
-    const child = spawn('node', [envScriptPath], {
+    const child = spawn(execPath, [envScriptPath], {
       env: {
         NODE_ENV: 'production',
         JWT_SECRET: '',
@@ -39,7 +40,7 @@ test('Env Dependency Verification', async (t) => {
 
   await t.test('Fails to load email service if SMTP settings are missing', (t, done) => {
     // Pass empty strings to trigger validation error
-    const child = spawn('node', [emailScriptPath], {
+    const child = spawn(execPath, [emailScriptPath], {
       env: {
         SMTP_HOST: '',
         SMTP_PORT: '',
