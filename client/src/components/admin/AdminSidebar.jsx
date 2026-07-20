@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { PERMISSIONS, ROLE_PERMISSIONS } from '../../config/permissions';
 import NotificationBell from './NotificationBell';
 import './AdminSidebar.css';
@@ -13,7 +14,8 @@ import './AdminSidebar.css';
  * @returns {JSX.Element}
  */
 export default function AdminSidebar() {
-  const { admin, logout } = useAdminAuth();
+  const { admin, logout: adminLogout } = useAdminAuth();
+  const { logout: donorLogout } = useAuth();
   const location = useLocation();
 
   const navItems = [
@@ -77,7 +79,13 @@ export default function AdminSidebar() {
       </nav>
 
       <div className="admin-sidebar__footer">
-        <button onClick={logout} className="logout-btn">
+        <button onClick={async () => {
+          try {
+            await adminLogout();
+          } finally {
+            await donorLogout().catch(() => {});
+          }
+        }} className="logout-btn">
           <span className="btn-icon">🚪</span>
           Logout
         </button>

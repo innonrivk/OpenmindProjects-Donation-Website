@@ -225,7 +225,6 @@ export default function SignupPage() {
             useOneTap
             theme="filled_blue"
             shape="pill"
-            width="100%"
           />
         </div>
 

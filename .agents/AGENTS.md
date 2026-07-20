@@ -47,3 +47,11 @@
     | Hangs on a `while (!queue.isEmpty())` poll | Queue worker stuck or never draining | Inspect the worker/queue drain logic |
     | HTTP request to test server takes minutes | Another process holds a DB write lock | Kill competing process, retry |
 
+
+## EasyPanel Deployment Workflow (Docker)
+*   **Agent-Driven Deployment:** When code changes require a deployment to the live EasyPanel server, the agent MUST proactively build and push the updated Docker images to the Docker registry (Docker Hub) using the terminal, rather than instructing the user to do it.
+*   **Image Tags:** Use the tags defined in `docker-compose.yml`:
+    *   Server: `innon15/omp-server:latest`
+    *   Client: `innon15/omp-client:latest`
+*   **Docker Availability:** If the local Docker daemon is not running or accessible, the agent must inform the user and request they start Docker Desktop before proceeding.
+*   **Post-Push Action:** After the agent successfully pushes the images, instruct the user to click "Rebuild / Deploy" in the EasyPanel dashboard.
