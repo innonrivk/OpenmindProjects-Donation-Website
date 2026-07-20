@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { useAuth } from '../../context/AuthContext';
 import { PERMISSIONS, ROLE_PERMISSIONS } from '../../config/permissions';
@@ -17,6 +17,7 @@ export default function AdminSidebar() {
   const { admin, logout: adminLogout } = useAdminAuth();
   const { logout: donorLogout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const navItems = [
     { label: 'Text edit site', path: '/admin/dashboard', icon: '💬', permission: PERMISSIONS.CAN_EDIT_CONTENT },
@@ -79,12 +80,10 @@ export default function AdminSidebar() {
       </nav>
 
       <div className="admin-sidebar__footer">
-        <button onClick={async () => {
-          try {
-            await adminLogout();
-          } finally {
-            await donorLogout().catch(() => {});
-          }
+        <button onClick={() => {
+          navigate('/login', { replace: true });
+          adminLogout().catch(() => {});
+          donorLogout().catch(() => {});
         }} className="logout-btn">
           <span className="btn-icon">🚪</span>
           Logout
