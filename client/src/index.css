@@ -225,13 +225,7 @@ strong .underline-text {
 }
 
 .default-color-text {
-  color: var(--color-text-primary);
-  background: none;
-  -webkit-text-fill-color: var(--color-text-primary);
-  background-clip: unset;
-  -webkit-background-clip: unset;
   font-weight: normal;
-  /* Force normal font weight (un-bold) */
 }
 
 .glass {
